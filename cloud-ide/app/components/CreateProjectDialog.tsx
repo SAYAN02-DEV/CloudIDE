@@ -1,6 +1,7 @@
 "use client";
 import React, { useState } from 'react';
 import { X } from 'lucide-react';
+import { set } from 'mongoose';
 
 interface CreateProjectDialogProps {
   isOpen: boolean;
@@ -10,16 +11,50 @@ interface CreateProjectDialogProps {
 const CreateProjectDialog = ({ isOpen, onClose }: CreateProjectDialogProps) => {
   const [projectName, setProjectName] = useState('');
   const [selectedStack, setSelectedStack] = useState<'React' | 'Node.js' | 'Python' | null>(null);
+  const [isCreating, setIsCreating] = useState(false);
+  const [error, setError] = useState('');
+  if (!isOpen){
+    return null;
+  }
 
-  if (!isOpen) return null;
-
-  const handleCreate = () => {
-    // Your backend logic will go here
-    console.log('Creating project:', { projectName, selectedStack });
-    // Reset and close
-    setProjectName('');
-    setSelectedStack(null);
-    onClose();
+  const handleCreate = async () => {
+    if(!projectName){
+      return;
+    }
+    setIsCreating(true);
+    setError('');
+    try{
+      const token = localStorage.getItem('token');
+      if(!token){
+        setError('Login to continue');
+        setIsCreating(false);
+        return;
+      }
+      const response = await fetch('/api/v2/projects', {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+          'authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          name: projectName,
+          stack: selectedStack?selectedStack:'python',
+          language: selectedStack==='Node.js'?'javascript':selectedStack==='React'?'javascript':'python'
+        }),
+      });
+      const data = await response.json();
+      if(!response.ok){
+        throw new Error(data.message || 'Failed to create project');
+      }
+      setProjectName('');
+      setSelectedStack(null);
+      onClose();
+      window.location.href = `/editor/${data.project.id}`;
+    }catch(err:any){
+      setError(err.message || 'Failed to create project');
+    }finally{
+      setIsCreating(false);
+    }
   };
 
   return (
@@ -91,7 +126,12 @@ const CreateProjectDialog = ({ isOpen, onClose }: CreateProjectDialogProps) => {
             </button>
           </div>
         </div>
-
+        {/* Error Message */}
+        {error && (
+          <div className="mb-4 p-3 bg-red-900/30 border border-red-700 rounded-md">
+            <p className="text-red-400 text-sm">{error}</p>
+          </div>
+        )}
         {/* Create Button */}
         <div className="flex justify-end">
           <button
