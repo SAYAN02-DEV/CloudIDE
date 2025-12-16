@@ -1,7 +1,11 @@
+'use client';
+
 import React from 'react';
+import { useRouter } from 'next/navigation';
 import { Code, Terminal, Image, Cpu, GitFork } from 'lucide-react';
 
 interface ProjectCardProps {
+    projectId?: string;
     projectName: string;
     description: string;
     lastModified: string;
@@ -10,7 +14,9 @@ interface ProjectCardProps {
     icon?: 'code' | 'terminal' | 'image' | 'cpu';
 }
 
-const ProjectCard = ({ projectName, description, lastModified, language, forks, icon = 'code' }: ProjectCardProps) => {
+const ProjectCard = ({ projectId, projectName, description, lastModified, language, forks, icon = 'code' }: ProjectCardProps) => {
+  const router = useRouter();
+  
   const iconMap = {
     code: Code,
     terminal: Terminal,
@@ -27,8 +33,17 @@ const ProjectCard = ({ projectName, description, lastModified, language, forks, 
 
   const IconComponent = iconMap[icon];
 
+  const handleClick = () => {
+    if (projectId) {
+      router.push(`/editor/${projectId}`);
+    }
+  };
+
   return (
-    <div className='bg-[#1e1e1e] border border-gray-800 rounded-lg p-5 hover:border-gray-700 transition-all cursor-pointer group'>
+    <div 
+      onClick={handleClick}
+      className='bg-[#1e1e1e] border border-gray-800 rounded-lg p-5 hover:border-gray-700 transition-all cursor-pointer group'
+    >
       <div className='flex items-start gap-4'>
         <div className='p-3 bg-[#2a2a2a] rounded-lg'>
           <IconComponent className='w-6 h-6 text-gray-400 group-hover:text-blue-500 transition-colors' />

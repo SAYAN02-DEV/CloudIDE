@@ -10,16 +10,57 @@ interface CreateProjectDialogProps {
 const CreateProjectDialog = ({ isOpen, onClose }: CreateProjectDialogProps) => {
   const [projectName, setProjectName] = useState('');
   const [selectedStack, setSelectedStack] = useState<'React' | 'Node.js' | 'Python' | null>(null);
+  const [isCreating, setIsCreating] = useState(false);
+  const [error, setError] = useState('');
 
   if (!isOpen) return null;
 
-  const handleCreate = () => {
-    // Your backend logic will go here
-    console.log('Creating project:', { projectName, selectedStack });
-    // Reset and close
-    setProjectName('');
-    setSelectedStack(null);
-    onClose();
+  const handleCreate = async () => {
+    if (!projectName || !selectedStack) return;
+
+    setIsCreating(true);
+    setError('');
+
+    try {
+      const token = localStorage.getItem('token');
+      
+      if (!token) {
+        setError('Please log in to create a project');
+        setIsCreating(false);
+        return;
+      }
+
+      const response = await fetch('/api/v2/projects', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          name: projectName,
+          stack: selectedStack,
+          language: selectedStack === 'Python' ? 'Python' : 'JavaScript',
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.message || 'Failed to create project');
+      }
+
+      // Reset and close
+      setProjectName('');
+      setSelectedStack(null);
+      onClose();
+      
+      // Redirect to the new project
+      window.location.href = `/editor/${data.project.id}`;
+    } catch (err: any) {
+      setError(err.message || 'Failed to create project');
+    } finally {
+      setIsCreating(false);
+    }
   };
 
   return (
@@ -92,18 +133,25 @@ const CreateProjectDialog = ({ isOpen, onClose }: CreateProjectDialogProps) => {
           </div>
         </div>
 
+        {/* Error Message */}
+        {error && (
+          <div className="mb-4 p-3 bg-red-900/30 border border-red-700 rounded-md">
+            <p className="text-red-400 text-sm">{error}</p>
+          </div>
+        )}
+
         {/* Create Button */}
         <div className="flex justify-end">
           <button
             onClick={handleCreate}
-            disabled={!projectName || !selectedStack}
+            disabled={!projectName || !selectedStack || isCreating}
             className={`px-6 py-2.5 rounded-md font-medium transition-colors ${
-              projectName && selectedStack
+              projectName && selectedStack && !isCreating
                 ? 'bg-blue-600 text-white hover:bg-blue-700'
                 : 'bg-gray-700 text-gray-500 cursor-not-allowed'
             }`}
           >
-            Create
+            {isCreating ? 'Creating...' : 'Create'}
           </button>
         </div>
       </div>
