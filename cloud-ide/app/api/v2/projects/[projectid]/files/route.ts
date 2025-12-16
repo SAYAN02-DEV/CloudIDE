@@ -103,7 +103,7 @@ export async function POST(
     // Save empty CRDT state to S3
     await s3Service.saveCRDTState(projectId, data.path, state);
     
-    console.log(`✅ Created empty file: ${data.path} with CRDT state (${state.length} bytes)`);
+    console.log(`Created empty file: ${data.path} with CRDT state (${state.length} bytes)`);
 
     return NextResponse.json(
       { message: 'File created successfully', path: data.path },
