@@ -107,7 +107,48 @@ export class SQSService {
             throw err;
         }
     }
-    
 
+    async receiveCommands(maxMesages: number = 1): Promise<{ receivedCommand: TerminalCommand; receiptHandle: string }[]>{
+        try{
+            const command = new ReceiveMessageCommand({
+                QueueUrl: this.queueUrl,
+                MaxNumberOfMessages:maxMesages,
+                WaitTimeSeconds:20,
+                MessageAttributeNames: ['All'],
+            });
+            const result = await this.sqsClient.send(command);
+            if(!result.Messages || result.Messages.length === 0){
+                return [];
+            }
+            console.log(`Received ${result.Messages.length} message from queue`);
+            return result.Messages.filter(msg => msg.ReceiptHandle !== undefined).map(msg =>({
+                receivedCommand: JSON.parse(msg.Body || '{}') as TerminalCommand,
+                receiptHandle: msg.ReceiptHandle!,
+            }));
+        }catch(error){
+            console.error('Error receiving commands from SQS:', error);
+            return [];
+        }
 
+    }
+
+    async deleteCommand(receiptHandle: string): Promise<void> {
+        try{
+            const command = new DeleteMessageCommand({
+                QueueUrl: this.queueUrl,
+                ReceiptHandle: receiptHandle,
+            });
+            await this.sqsClient.send(command);
+        }catch(err){
+            console.log(`error is ${err}`);
+        }
+    }
+}
+let sqsService: SQSService | null = null;
+
+export function getSQSService(): SQSService {
+    if (!sqsService) {
+        sqsService = new SQSService();
+    }
+    return sqsService;
 }
