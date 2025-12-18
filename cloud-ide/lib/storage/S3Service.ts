@@ -117,6 +117,40 @@ export class S3Service {
     }
   }
 
+  // load CRDT state
+  async loadCRDTState(
+    projectId: string,
+    filePath: string
+  ): Promise<Uint8Array | null> {
+    const key = `crdt/${projectId}/${filePath}.yjs`;
+
+    const command = new GetObjectCommand({
+      Bucket: this.bucketName,
+      Key: key,
+    });
+
+    try {
+      const response = await this.s3Client.send(command);
+      const stream = response.Body as any;
+      
+      const chunks: Uint8Array[] = [];
+      for await (const chunk of stream) {
+        chunks.push(chunk);
+      }
+      
+      const buffer = Buffer.concat(chunks);
+      console.log(`Loaded CRDT state from S3: ${key} (${buffer.length} bytes)`);
+      return new Uint8Array(buffer);
+    } catch (error: any) {
+      if (error?.name === 'NoSuchKey' || error?.$metadata?.httpStatusCode === 404) {
+        console.log(`No CRDT state found in S3 for: ${key}`);
+        return null;
+      }
+      console.error(`Error loading CRDT state from S3:`, error);
+      throw error;
+    }
+  }
+
   
 }
 
