@@ -87,6 +87,36 @@ export class S3Service {
     }
   }
 
+  // save CRDT state
+  async saveCRDTState(
+    projectId: string,
+    filePath: string,
+    state: Uint8Array
+  ): Promise<void> {
+    const key = `crdt/${projectId}/${filePath}.yjs`;
+
+    const command = new PutObjectCommand({
+      Bucket: this.bucketName,
+      Key: key,
+      Body: Buffer.from(state),
+      ContentType: 'application/octet-stream',
+      Metadata: {
+        projectId,
+        filePath,
+        format: 'yjs-crdt',
+        uploadedAt: new Date().toISOString(),
+      },
+    });
+
+    try {
+      await this.s3Client.send(command);
+      console.log(`Saved CRDT state to S3: ${key} (${state.length} bytes)`);
+    } catch (error) {
+      console.error(`Error saving CRDT state to S3:`, error);
+      throw error;
+    }
+  }
+
   
 }
 
