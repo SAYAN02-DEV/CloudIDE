@@ -345,7 +345,31 @@ export class S3Service {
     console.log(`Deleted all files for project ${projectId}`);
   }
 
-  
+  // uploading the whole project
+  async syncProjectToS3(
+    projectId: string,
+    files: Array<{ path: string; content: Buffer | string; contentType?: string }>
+  ): Promise<void> {
+    const uploadPromises = files.map((file) =>
+      this.uploadFile(projectId, file.path, file.content, file.contentType)
+    );
+
+    await Promise.all(uploadPromises);
+    console.log(`Synced ${files.length} files to S3 for project ${projectId}`);
+  }
+
+  // downloading complete project
+  async downloadProject(projectId: string): Promise<Map<string, Buffer>> {
+    const files = await this.listFiles(projectId);
+    const fileMap = new Map<string, Buffer>();
+
+    for (const file of files) {
+      const content = await this.downloadFile(projectId, file.key);
+      fileMap.set(file.key, content);
+    }
+
+    return fileMap;
+  }
 }
 
 // Singleton instance
