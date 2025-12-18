@@ -151,6 +151,200 @@ export class S3Service {
     }
   }
 
+  // download file from s3
+  async downloadFile(projectId: string, filePath: string): Promise<Buffer> {
+    const key = `projects/${projectId}/${filePath}`;
+
+    const command = new GetObjectCommand({
+      Bucket: this.bucketName,
+      Key: key,
+    });
+
+    try {
+      const response = await this.s3Client.send(command);
+      const stream = response.Body as any;
+      
+      // Convert stream to buffer
+      const chunks: Uint8Array[] = [];
+      for await (const chunk of stream) {
+        chunks.push(chunk);
+      }
+      
+      return Buffer.concat(chunks);
+    } catch (error) {
+      console.error(`Error downloading file from S3:`, error);
+      throw error;
+    }
+  }
+  // delete file from s3
+  async deleteFile(projectId: string, filePath: string): Promise<void> {
+    const key = `projects/${projectId}/${filePath}`;
+
+    const command = new DeleteObjectCommand({
+      Bucket: this.bucketName,
+      Key: key,
+    });
+
+    try {
+      await this.s3Client.send(command);
+      console.log(`Deleted file from S3: ${key}`);
+    } catch (error) {
+      console.error(`Error deleting file from S3:`, error);
+      throw error;
+    }
+  }
+
+  // /list files in a project
+  async listFiles(projectId: string, prefix: string = ''): Promise<S3FileMetadata[]> {
+    const keyPrefix = `projects/${projectId}/${prefix}`;
+
+    const command = new ListObjectsV2Command({
+      Bucket: this.bucketName,
+      Prefix: keyPrefix,
+    });
+
+    try {
+      const response = await this.s3Client.send(command);
+      
+      if (!response.Contents) {
+        return [];
+      }
+
+      return response.Contents.map((item) => ({
+        key: item.Key!.replace(`projects/${projectId}/`, ''),
+        size: item.Size || 0,
+        lastModified: item.LastModified || new Date(),
+        contentType: item.StorageClass,
+      }));
+    } catch (error) {
+      console.error(`Error listing files from S3:`, error);
+      throw error;
+    }
+  }
+
+  // creating a folder
+  async createCRDTFolder(projectId: string, folderPath: string): Promise<void> {
+    // Normalize folder path (no leading slash, ensure trailing slash)
+    const normalized = folderPath.replace(/^\/+/, '').replace(/\/+$/, '') + '/';
+    const key = `crdt/${projectId}/${normalized}.folder`;
+
+    const command = new PutObjectCommand({
+      Bucket: this.bucketName,
+      Key: key,
+      Body: Buffer.from(''),
+      ContentType: 'application/octet-stream',
+      Metadata: {
+        projectId,
+        folderPath: normalized,
+        type: 'folder',
+        uploadedAt: new Date().toISOString(),
+      },
+    });
+
+    try {
+      await this.s3Client.send(command);
+      console.log(`Created CRDT folder marker in S3: ${key}`);
+    } catch (error) {
+      console.error(`Error creating CRDT folder in S3:`, error);
+      throw error;
+    }
+  }
+
+  // listing files in a project
+  async listCRDTFiles(projectId: string, prefix: string = ''): Promise<S3FileMetadata[]> {
+    const keyPrefix = `crdt/${projectId}/${prefix}`;
+
+    const command = new ListObjectsV2Command({
+      Bucket: this.bucketName,
+      Prefix: keyPrefix,
+    });
+
+    try {
+      const response = await this.s3Client.send(command);
+      
+      if (!response.Contents) {
+        return [];
+      }
+
+      return response.Contents.map((item) => {
+        let filename = item.Key!.replace(`crdt/${projectId}/`, '');
+        if (filename.endsWith('.yjs')) {
+          filename = filename.slice(0, -4);
+        }
+        if (filename.endsWith('.folder')) {
+          filename = filename.replace(/\.folder$/, '/');
+        }
+        
+        return {
+          key: filename,
+          size: item.Size || 0,
+          lastModified: item.LastModified || new Date(),
+          contentType: item.StorageClass,
+        };
+      });
+    } catch (error) {
+      console.error(`Error listing CRDT files from S3:`, error);
+      throw error;
+    }
+  }
+
+  // copy a file within s3
+  async copyFile(
+    projectId: string,
+    sourcePath: string,
+    destinationPath: string
+  ): Promise<void> {
+    const sourceKey = `projects/${projectId}/${sourcePath}`;
+    const destKey = `projects/${projectId}/${destinationPath}`;
+
+    const command = new CopyObjectCommand({
+      Bucket: this.bucketName,
+      CopySource: `${this.bucketName}/${sourceKey}`,
+      Key: destKey,
+    });
+
+    try {
+      await this.s3Client.send(command);
+      console.log(`Copied file in S3: ${sourceKey} -> ${destKey}`);
+    } catch (error) {
+      console.error(`Error copying file in S3:`, error);
+      throw error;
+    }
+  }
+
+  // getting url for download
+  async getPresignedDownloadUrl(
+    projectId: string,
+    filePath: string,
+    expiresIn: number = 3600
+  ): Promise<string> {
+    const key = `projects/${projectId}/${filePath}`;
+
+    const command = new GetObjectCommand({
+      Bucket: this.bucketName,
+      Key: key,
+    });
+
+    try {
+      const url = await getSignedUrl(this.s3Client, command, { expiresIn });
+      return url;
+    } catch (error) {
+      console.error(`Error generating presigned URL:`, error);
+      throw error;
+    }
+  }
+
+  // deleteing whole project
+  async deleteProject(projectId: string): Promise<void> {
+    const files = await this.listFiles(projectId);
+
+    for (const file of files) {
+      await this.deleteFile(projectId, file.key);
+    }
+
+    console.log(`Deleted all files for project ${projectId}`);
+  }
+
   
 }
 
