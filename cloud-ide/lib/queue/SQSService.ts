@@ -6,6 +6,7 @@ import {
     GetQueueUrlCommand,
     CreateQueueCommand
 } from '@aws-sdk/client-sqs'
+import { promises } from 'dns';
 import { UNDERSCORE_NOT_FOUND_ROUTE } from 'next/dist/shared/lib/entry-constants';
 
 export interface TerminalCommand {
@@ -77,6 +78,36 @@ export class SQSService {
         this.initialized = true;
         console.log(`SQS Service initialized with queue URL: ${this.queueUrl}`);
     }
+
+    async sendCommand(recievedCommand: TerminalCommand): Promise<void> {
+        try{
+            console.log(`sending command to queue ${this.queueUrl}`);
+            const command = new SendMessageCommand({
+                QueueUrl: this.queueUrl,
+                MessageBody: JSON.stringify(recievedCommand),
+                MessageAttributes: {
+                projectId: {
+                    DataType: 'String',
+                    StringValue: recievedCommand.projectId,
+                },
+                terminalId: {
+                    DataType: 'String',
+                    StringValue: recievedCommand.terminalId,
+                },
+                userId: {
+                    DataType: 'String',
+                    StringValue: recievedCommand.userId,
+                },
+                },
+            });
+            const result = await this.sqsClient.send(command);
+            console.log(`Sent command to SQS: ${recievedCommand.command} (MessageId: ${result.MessageId}`)
+        }catch(err){
+            console.log(`Error sending command to SQS:`, err);
+            throw err;
+        }
+    }
     
+
 
 }
