@@ -1,0 +1,64 @@
+{
+  "family": "cloudide-worker",
+  "networkMode": "awsvpc",
+  "requiresCompatibilities": ["FARGATE"],
+  "cpu": "512",
+  "memory": "1024",
+  "executionRoleArn": "arn:aws:iam::YOUR_ACCOUNT_ID:role/ecsTaskExecutionRole",
+  "taskRoleArn": "arn:aws:iam::YOUR_ACCOUNT_ID:role/cloudide-worker-task-role",
+  "containerDefinitions": [
+    {
+      "name": "cloudide-worker",
+      "image": "YOUR_ACCOUNT_ID.dkr.ecr.ap-south-1.amazonaws.com/cloudide-worker:latest",
+      "essential": true,
+      "logConfiguration": {
+        "logDriver": "awslogs",
+        "options": {
+          "awslogs-group": "/ecs/cloudide-worker",
+          "awslogs-region": "ap-south-1",
+          "awslogs-stream-prefix": "ecs"
+        }
+      },
+      "environment": [
+        {
+          "name": "NODE_ENV",
+          "value": "production"
+        },
+        {
+          "name": "AWS_REGION",
+          "value": "ap-south-1"
+        }
+      ],
+      "secrets": [
+        {
+          "name": "MONGODB_URI",
+          "valueFrom": "arn:aws:secretsmanager:ap-south-1:YOUR_ACCOUNT_ID:secret:cloudide/mongodb-uri"
+        },
+        {
+          "name": "REDIS_HOST",
+          "valueFrom": "arn:aws:secretsmanager:ap-south-1:YOUR_ACCOUNT_ID:secret:cloudide/redis-host"
+        },
+        {
+          "name": "REDIS_PORT",
+          "valueFrom": "arn:aws:secretsmanager:ap-south-1:YOUR_ACCOUNT_ID:secret:cloudide/redis-port"
+        },
+        {
+          "name": "AWS_ACCESS_KEY_ID",
+          "valueFrom": "arn:aws:secretsmanager:ap-south-1:YOUR_ACCOUNT_ID:secret:cloudide/aws-access-key-id"
+        },
+        {
+          "name": "AWS_SECRET_ACCESS_KEY",
+          "valueFrom": "arn:aws:secretsmanager:ap-south-1:YOUR_ACCOUNT_ID:secret:cloudide/aws-secret-access-key"
+        },
+        {
+          "name": "AWS_S3_BUCKET_NAME",
+          "valueFrom": "arn:aws:secretsmanager:ap-south-1:YOUR_ACCOUNT_ID:secret:cloudide/s3-bucket-name"
+        },
+        {
+          "name": "AWS_SQS_QUEUE_URL",
+          "valueFrom": "arn:aws:secretsmanager:ap-south-1:YOUR_ACCOUNT_ID:secret:cloudide/sqs-queue-url"
+        }
+      ]
+    }
+  ]
+}

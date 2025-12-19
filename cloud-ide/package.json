@@ -12,11 +12,15 @@
     "dev:all": "concurrently \"npm run dev\" \"npm run ws-server\"",
     "dev:worker": "tsx workers/terminal-worker.ts",
     "dev:full": "concurrently \"npm run dev\" \"npm run ws-server\" \"npm run dev:worker\"",
-    "k8s:setup": "chmod +x scripts/setup-local-k8s.sh && ./scripts/setup-local-k8s.sh",
-    "k8s:logs": "kubectl logs -f -l app=terminal-worker -n cloudide-workers",
-    "k8s:status": "kubectl get pods,hpa -n cloudide-workers"
+    "ecs:setup": "chmod +x scripts/setup-ecs.sh && ./scripts/setup-ecs.sh",
+    "ecs:orchestrator": "tsx workers/ecs-orchestrator.ts",
+    "ecs:test": "tsx workers/terminal-worker.ts",
+    "ecs:logs": "aws logs tail /ecs/cloudide-worker --follow",
+    "ecs:tasks": "aws ecs list-tasks --cluster cloudide-cluster --desired-status RUNNING",
+    "ecs:build-push": "aws ecr get-login-password --region ${AWS_REGION:-ap-south-1} | docker login --username AWS --password-stdin $(aws sts get-caller-identity --query Account --output text).dkr.ecr.${AWS_REGION:-ap-south-1}.amazonaws.com && docker build -f Dockerfile.worker -t cloudide-worker:latest . && docker tag cloudide-worker:latest $(aws sts get-caller-identity --query Account --output text).dkr.ecr.${AWS_REGION:-ap-south-1}.amazonaws.com/cloudide-worker:latest && docker push $(aws sts get-caller-identity --query Account --output text).dkr.ecr.${AWS_REGION:-ap-south-1}.amazonaws.com/cloudide-worker:latest"
   },
   "dependencies": {
+    "@aws-sdk/client-ecs": "^3.955.0",
     "@aws-sdk/client-s3": "^3.709.0",
     "@aws-sdk/client-sqs": "^3.709.0",
     "@aws-sdk/s3-request-presigner": "^3.709.0",

@@ -31,4 +31,4 @@ RUN mkdir -p /tmp/workspaces
 ENV NODE_ENV=production
 
 # Run the worker
-CMD ["node", "dist/lib/terminal/TerminalWorker.js"]
+CMD ["node", "dist/workers/terminal-worker.js"]
