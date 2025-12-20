@@ -4,10 +4,20 @@ config(); // Load environment variables from .env file
 import { getSQSService, TerminalCommand } from '../lib/queue/SQSService';
 import { getS3Service } from '../lib/storage/S3Service';
 import { createClient, RedisClientType } from 'redis';
-import { spawn } from 'child_process';
+import { spawn, ChildProcess } from 'child_process';
 import * as Y from 'yjs';
 import * as fs from 'fs/promises';
 import * as path from 'path';
+
+// Interface to track terminal sessions
+interface TerminalSession {
+  projectId: string;
+  terminalId: string;
+  workspacePath: string;
+  currentProcess?: ChildProcess;
+  createdAt: number;
+  lastActivityAt: number;
+}
 
 export class TerminalWorker {
   private sqsService: ReturnType<typeof getSQSService>;
@@ -15,6 +25,7 @@ export class TerminalWorker {
   private redisPub: RedisClientType;
   private isRunning: boolean = false;
   private workspaceRoot: string = '/tmp/cloudide-workspaces';
+  private activeSessions: Map<string, TerminalSession> = new Map(); // sessionKey -> TerminalSession
 
   constructor() {
     this.sqsService = getSQSService();
@@ -32,7 +43,11 @@ export class TerminalWorker {
   async initialize() {
     await this.redisPub.connect();
     await fs.mkdir(this.workspaceRoot, { recursive: true });
-    console.log('✅ Terminal Worker initialized');
+    console.log('✅ Terminal Worker initialized with persistent sessions');
+  }
+
+  private getSessionKey(projectId: string, terminalId: string): string {
+    return `${projectId}:${terminalId}`;
   }
 
   /**
@@ -81,17 +96,29 @@ export class TerminalWorker {
     console.log(`⚙️  Processing command from ${username}: ${cmd}`);
 
     try {
-      // 1. Prepare workspace for this project
-      const workspacePath = await this.prepareWorkspace(projectId);
+      const sessionKey = this.getSessionKey(projectId, terminalId);
+      let session = this.activeSessions.get(sessionKey);
 
-      // 2. Execute command in workspace
-      const output = await this.executeCommand(cmd, workspacePath);
+      // If session doesn't exist, create it
+      if (!session) {
+        console.log(`📦 Creating new session for ${sessionKey}`);
+        const workspacePath = await this.prepareWorkspace(projectId);
+        session = {
+          projectId,
+          terminalId,
+          workspacePath,
+          createdAt: Date.now(),
+          lastActivityAt: Date.now(),
+        };
+        this.activeSessions.set(sessionKey, session);
+        await this.publishOutput(projectId, terminalId, `Session initialized for ${projectId}\n`);
+      } else {
+        console.log(`♻️  Reusing existing session for ${sessionKey}`);
+        session.lastActivityAt = Date.now();
+      }
 
-      // 3. Sync workspace changes back to S3
-      await this.syncWorkspaceToS3(projectId, workspacePath);
-
-      // 4. Send output via Redis Pub/Sub
-      await this.publishOutput(projectId, terminalId, output);
+      // Execute command in the persistent workspace
+      await this.executeCommandInSession(session, cmd);
 
       console.log(`✅ Command executed successfully: ${cmd}`);
     } catch (error: any) {
@@ -102,6 +129,65 @@ export class TerminalWorker {
         `Error: ${error.message || 'Command failed'}\n`
       );
     }
+  }
+
+  /**
+   * Execute command in an existing session
+   */
+  private async executeCommandInSession(session: TerminalSession, cmd: string): Promise<void> {
+    const { projectId, terminalId, workspacePath } = session;
+
+    return new Promise((resolve, reject) => {
+      const proc = spawn(cmd, [], {
+        cwd: workspacePath,
+        shell: true,
+        env: {
+          ...process.env,
+          HOME: workspacePath,
+          PWD: workspacePath,
+        },
+      });
+
+      // Store current process
+      session.currentProcess = proc;
+
+      let stdout = '';
+      let stderr = '';
+
+      proc.stdout.on('data', async (data) => {
+        const output = data.toString();
+        stdout += output;
+        await this.publishOutput(projectId, terminalId, output);
+      });
+
+      proc.stderr.on('data', async (data) => {
+        const output = data.toString();
+        stderr += output;
+        await this.publishOutput(projectId, terminalId, output);
+      });
+
+      proc.on('close', async (code) => {
+        session.currentProcess = undefined;
+        
+        if (code !== 0 && !stdout && !stderr) {
+          await this.publishOutput(projectId, terminalId, `Process exited with code ${code}\n`);
+        }
+
+        // Sync workspace changes back to S3
+        try {
+          await this.syncWorkspaceToS3(projectId, workspacePath);
+        } catch (error) {
+          console.error('❌ Error syncing workspace to S3:', error);
+        }
+
+        resolve();
+      });
+
+      proc.on('error', async (error) => {
+        await this.publishOutput(projectId, terminalId, `Error: ${error.message}\n`);
+        reject(error);
+      });
+    });
   }
 
   /**
@@ -167,52 +253,6 @@ export class TerminalWorker {
     } catch (error) {
       console.error(`❌ Error converting file ${filePath}:`, error);
     }
-  }
-
-  /**
-   * Execute command in workspace
-   */
-  private async executeCommand(command: string, cwd: string): Promise<string> {
-    return new Promise((resolve, reject) => {
-      const proc = spawn(command, [], {
-        cwd,
-        shell: true,
-        env: {
-          ...process.env,
-          HOME: cwd,
-          PWD: cwd,
-        },
-      });
-
-      let stdout = '';
-      let stderr = '';
-
-      proc.stdout.on('data', (data) => {
-        stdout += data.toString();
-      });
-
-      proc.stderr.on('data', (data) => {
-        stderr += data.toString();
-      });
-
-      proc.on('close', (code) => {
-        if (code === 0 || stdout || stderr) {
-          resolve(stdout + stderr);
-        } else {
-          reject(new Error(`Command exited with code ${code}`));
-        }
-      });
-
-      proc.on('error', (error) => {
-        reject(error);
-      });
-
-      // Timeout after 30 seconds
-      setTimeout(() => {
-        proc.kill();
-        reject(new Error('Command timeout (30s)'));
-      }, 30000);
-    });
   }
 
   /**

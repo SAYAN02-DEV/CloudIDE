@@ -53,8 +53,11 @@ export class S3Service {
         await this.s3Client.send(new CreateBucketCommand({ Bucket: this.bucketName }));
         console.log(`✅ Created S3 bucket: ${this.bucketName}`);
       }
-    } catch (error) {
-      console.error('⚠️  Error ensuring bucket exists:', error);
+    } catch (error: any) {
+      // Suppress "BucketAlreadyOwnedByYou" - it's not an error
+      if (error.Code !== 'BucketAlreadyOwnedByYou') {
+        console.error('⚠️  Error ensuring bucket exists:', error);
+      }
     }
   }
 

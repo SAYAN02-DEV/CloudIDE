@@ -1,0 +1,47 @@
+{
+  "family": "cloudide-terminal-task",
+  "networkMode": "awsvpc",
+  "requiresCompatibilities": ["FARGATE"],
+  "cpu": "512",
+  "memory": "1024",
+  "executionRoleArn": "arn:aws:iam::{ACCOUNT_ID}:role/ecsTaskExecutionRole",
+  "taskRoleArn": "arn:aws:iam::{ACCOUNT_ID}:role/cloudide-terminal-task-role",
+  "containerDefinitions": [
+    {
+      "name": "terminal",
+      "image": "{ACCOUNT_ID}.dkr.ecr.{REGION}.amazonaws.com/cloudide-terminal:latest",
+      "essential": true,
+      "interactive": true,
+      "pseudoTerminal": true,
+      "linuxParameters": {
+        "initProcessEnabled": true
+      },
+      "logConfiguration": {
+        "logDriver": "awslogs",
+        "options": {
+          "awslogs-group": "/ecs/cloudide-terminal",
+          "awslogs-region": "{REGION}",
+          "awslogs-stream-prefix": "terminal"
+        }
+      },
+      "environment": [
+        {
+          "name": "AWS_REGION",
+          "value": "{REGION}"
+        },
+        {
+          "name": "S3_BUCKET",
+          "value": "cloudide-projects"
+        }
+      ],
+      "command": ["/bin/bash"],
+      "healthCheck": {
+        "command": ["CMD-SHELL", "test -d /workspace || exit 1"],
+        "interval": 30,
+        "timeout": 5,
+        "retries": 3,
+        "startPeriod": 60
+      }
+    }
+  ]
+}

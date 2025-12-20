@@ -1,0 +1,50 @@
+FROM ubuntu:22.04
+
+# Install essential tools
+RUN apt-get update && apt-get install -y \
+    bash \
+    curl \
+    wget \
+    git \
+    vim \
+    nano \
+    python3 \
+    python3-pip \
+    nodejs \
+    npm \
+    build-essential \
+    jq \
+    unzip \
+    awscli \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install AWS Session Manager Agent for ECS Exec
+RUN curl -o /tmp/session-manager-plugin.deb \
+    https://s3.amazonaws.com/session-manager-downloads/plugin/latest/ubuntu_64bit/session-manager-plugin.deb && \
+    dpkg -i /tmp/session-manager-plugin.deb && \
+    rm /tmp/session-manager-plugin.deb
+
+# Create non-root user for security
+RUN useradd -m -u 1000 -s /bin/bash cloudide && \
+    echo "cloudide ALL=(ALL) NOPASSWD:ALL" >> /etc/sudoers
+
+# Set working directory
+WORKDIR /workspace
+
+# Change ownership to cloudide user
+RUN chown -R cloudide:cloudide /workspace
+
+# Switch to non-root user
+USER cloudide
+
+# Set environment variables
+ENV HOME=/home/cloudide
+ENV SHELL=/bin/bash
+
+# Copy startup script
+COPY --chown=cloudide:cloudide scripts/terminal-entrypoint.sh /usr/local/bin/entrypoint.sh
+RUN chmod +x /usr/local/bin/entrypoint.sh
+
+# Entrypoint to sync files from S3 and start shell
+ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]
+CMD ["/bin/bash"]

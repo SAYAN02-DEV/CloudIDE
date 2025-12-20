@@ -29,6 +29,7 @@ export const CollaborativeTerminal: React.FC<CollaborativeTerminalProps> = ({
   const [historyIndex, setHistoryIndex] = useState(-1);
   const [isConnected, setIsConnected] = useState(false);
   const [currentPath, setCurrentPath] = useState('~');
+  const [isInitialized, setIsInitialized] = useState(false);
 
   useEffect(() => {
     const wsUrl = process.env.NEXT_PUBLIC_WS_URL || 'ws://localhost:8080';
@@ -50,6 +51,9 @@ export const CollaborativeTerminal: React.FC<CollaborativeTerminalProps> = ({
       // Subscribe to terminal output
       socket.emit('subscribe-terminal', { projectId, terminalId });
 
+      // Initialize terminal session
+      socket.emit('terminal-init', { projectId, terminalId });
+
       // Send initial welcome message
       setOutput((prev) => [
         ...prev,
@@ -58,6 +62,7 @@ export const CollaborativeTerminal: React.FC<CollaborativeTerminalProps> = ({
         `Terminal ID: ${terminalId}`,
         `User: ${username}`,
         '---',
+        'Initializing terminal session...',
         '',
       ]);
     });
@@ -65,6 +70,14 @@ export const CollaborativeTerminal: React.FC<CollaborativeTerminalProps> = ({
     socket.on('disconnect', () => {
       console.log('❌ Terminal disconnected');
       setIsConnected(false);
+    });
+
+    // Handle terminal ready event
+    socket.on('terminal-ready', (data: { terminalId: string }) => {
+      if (data.terminalId === terminalId) {
+        setIsInitialized(true);
+        setOutput((prev) => [...prev, 'Terminal ready. Type your commands below.\n']);
+      }
     });
 
     // Handle terminal output from workers
@@ -75,6 +88,8 @@ export const CollaborativeTerminal: React.FC<CollaborativeTerminalProps> = ({
     });
 
     return () => {
+      // Terminate terminal session when component unmounts
+      socket.emit('terminal-close', { projectId, terminalId });
       socket.emit('leave-project', { projectId });
       socket.disconnect();
     };
@@ -151,14 +166,23 @@ export const CollaborativeTerminal: React.FC<CollaborativeTerminalProps> = ({
     setOutput([]);
   };
 
+  const handleClose = () => {
+    if (socketRef.current) {
+      socketRef.current.emit('terminal-close', { projectId, terminalId });
+    }
+    if (onClose) {
+      onClose();
+    }
+  };
+
   return (
     <div className="flex flex-col h-full bg-gray-900 text-gray-100 font-mono">
       {/* Terminal Header */}
       <div className="flex items-center justify-between px-4 py-2 bg-gray-800 border-b border-gray-700">
         <div className="flex items-center gap-3">
           <div className="flex gap-2">
-            <div className="w-3 h-3 rounded-full bg-red-500" onClick={onClose} style={{ cursor: 'pointer' }} />
-            <div className="w-3 h-3 rounded-full bg-yellow-500" onClick={handleClear} style={{ cursor: 'pointer' }} />
+            <div className="w-3 h-3 rounded-full bg-red-500" onClick={handleClose} style={{ cursor: 'pointer' }} title="Close terminal" />
+            <div className="w-3 h-3 rounded-full bg-yellow-500" onClick={handleClear} style={{ cursor: 'pointer' }} title="Clear terminal" />
             <div className="w-3 h-3 rounded-full bg-green-500" />
           </div>
           <span className="text-sm text-gray-400">Terminal - {projectId}</span>

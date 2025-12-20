@@ -3,6 +3,8 @@ import { createServer } from 'http';
 import { getCRDTService } from '../crdt/CRDTService';
 import { getS3Service } from '../storage/S3Service';
 import { getSQSService } from '../queue/SQSService';
+import { getECSTerminalService } from '../terminal/ECSTerminalService';
+import { getDockerTerminalService } from '../terminal/DockerTerminalService';
 import { createClient, RedisClientType } from 'redis';
 import jwt from 'jsonwebtoken';
 
@@ -27,6 +29,7 @@ export class WebSocketServer {
   private io: SocketIOServer;
   private httpServer: any;
   private crdtService: ReturnType<typeof getCRDTService>;
+  private terminalService: ReturnType<typeof getECSTerminalService> | ReturnType<typeof getDockerTerminalService>;
   private redisPub: RedisClientType;
   private redisSub: RedisClientType;
   private userSessions: Map<string, Set<string>>; // projectId -> Set of socketIds
@@ -46,6 +49,17 @@ export class WebSocketServer {
     });
 
     this.crdtService = getCRDTService();
+    
+    // Auto-select terminal service based on environment
+    const terminalMode = process.env.TERMINAL_MODE || 'docker';
+    if (terminalMode === 'ecs') {
+      console.log('🚀 Using ECS-based terminals (production mode)');
+      this.terminalService = getECSTerminalService();
+    } else {
+      console.log('🐳 Using Docker-based terminals (local development mode)');
+      this.terminalService = getDockerTerminalService();
+    }
+    
     this.userSessions = new Map();
     this.saveTimeouts = new Map();
     this.socketSubscriptions = new Map();
@@ -290,7 +304,65 @@ export class WebSocketServer {
         });
       });
 
-      // Terminal events
+      // Terminal initialization - called when terminal component mounts
+      socket.on('terminal-init', async (data: {
+        projectId: string;
+        terminalId: string;
+      }) => {
+        const { projectId, terminalId } = data;
+
+        console.log(`🖥️  Terminal initialized: ${projectId}:${terminalId}`);
+        
+        try {
+          // Create persistent terminal session
+          await this.terminalService.createSession(
+            projectId,
+            terminalId,
+            socket.data.userId
+          );
+
+          // Setup output handler for this session
+          const outputHandler = (output: { projectId: string; terminalId: string; data: string }) => {
+            if (output.projectId === projectId && output.terminalId === terminalId) {
+              socket.emit('terminal-output', {
+                terminalId: output.terminalId,
+                output: output.data,
+              });
+            }
+          };
+
+          this.terminalService.on('output', outputHandler);
+
+          // Store handler for cleanup
+          socket.data.terminalOutputHandler = outputHandler;
+
+          socket.emit('terminal-ready', { terminalId });
+          console.log(`✅ Terminal session created: ${projectId}:${terminalId}`);
+        } catch (error) {
+          console.error('❌ Error initializing terminal:', error);
+          socket.emit('terminal-output', {
+            terminalId,
+            output: `Error: Failed to initialize terminal\n`,
+          });
+        }
+      });
+
+      // Terminal input - called when user types in terminal
+      socket.on('terminal-input', async (data: {
+        projectId: string;
+        terminalId: string;
+        data: string;
+      }) => {
+        const { projectId, terminalId, data: input } = data;
+
+        try {
+          await this.terminalService.writeToTerminal(projectId, terminalId, input);
+        } catch (error) {
+          console.error('❌ Error writing to terminal:', error);
+        }
+      });
+
+      // Terminal command (for backwards compatibility)
       socket.on('terminal-command', async (data: {
         projectId: string;
         terminalId: string;
@@ -301,25 +373,15 @@ export class WebSocketServer {
         console.log(`⌨️  Terminal command from ${socket.data.username}: ${command}`);
         
         try {
-          // Send command to SQS queue for worker processing
-          const sqsService = getSQSService();
-          await sqsService.sendCommand({
-            projectId,
-            terminalId,
-            userId: socket.data.userId,
-            username: socket.data.username,
-            command,
-            timestamp: Date.now(),
-          });
-          
-          console.log(`✅ Command queued in SQS: ${command}`);
+          // Write command + newline to terminal
+          await this.terminalService.writeToTerminal(projectId, terminalId, command + '\n');
         } catch (error) {
-          console.error('❌ Error sending command to SQS:', error);
+          console.error('❌ Error sending command to terminal:', error);
           
           // Send error to client
           socket.emit('terminal-output', {
             terminalId,
-            output: `Error: Failed to queue command\n`,
+            output: `Error: ${error instanceof Error ? error.message : 'Unknown error'}\n`,
           });
         }
       });
@@ -333,15 +395,34 @@ export class WebSocketServer {
       }) => {
         const { projectId, terminalId, cols, rows } = data;
 
-        const message: TerminalMessage = {
-          type: 'resize',
-          projectId,
-          terminalId,
-          userId: socket.data.userId,
-          data: { cols, rows },
-        };
+        try {
+          await this.terminalService.resizeTerminal(projectId, terminalId, cols, rows);
+        } catch (error) {
+          console.error('❌ Error resizing terminal:', error);
+        }
+      });
 
-        await this.redisPub.publish(`terminal:command:${projectId}`, JSON.stringify(message));
+      // Terminal termination - called when terminal component unmounts
+      socket.on('terminal-close', async (data: {
+        projectId: string;
+        terminalId: string;
+      }) => {
+        const { projectId, terminalId } = data;
+
+        console.log(`❌ Terminal closed: ${projectId}:${terminalId}`);
+        
+        try {
+          // Remove output handler
+          if (socket.data.terminalOutputHandler) {
+            this.terminalService.off('output', socket.data.terminalOutputHandler);
+            delete socket.data.terminalOutputHandler;
+          }
+
+          // Terminate session
+          await this.terminalService.terminateSession(projectId, terminalId);
+        } catch (error) {
+          console.error('❌ Error terminating terminal:', error);
+        }
       });
 
       // Subscribe to terminal output for this project
@@ -416,6 +497,7 @@ export class WebSocketServer {
     try {
       // Initialize services
       await this.crdtService.initialize();
+      await this.terminalService.initialize();
       await this.redisPub.connect();
       await this.redisSub.connect();
       await this.setupTerminalRedisSubscription();
@@ -436,6 +518,7 @@ export class WebSocketServer {
   }
 
   async stop(): Promise<void> {
+    await this.terminalService.cleanup();
     await this.crdtService.close();
     await this.redisPub.quit();
     await this.redisSub.quit();

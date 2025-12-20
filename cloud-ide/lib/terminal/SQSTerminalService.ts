@@ -10,7 +10,7 @@ export interface TerminalCommand {
 }
 
 export interface TerminalCommandMessage {
-  type: 'execute' | 'resize';
+  type: 'execute' | 'resize' | 'init' | 'terminate';
   projectId: string;
   terminalId: string;
   userId: string;
@@ -173,6 +173,43 @@ export class SQSTerminalService {
     const key = `terminal:state:${projectId}:${terminalId}`;
     const state = await this.redisClient.get(key);
     return state ? JSON.parse(state) : null;
+  }
+
+  /**
+   * Store a terminal session as active
+   */
+  async registerTerminalSession(
+    projectId: string,
+    terminalId: string,
+    workerId: string
+  ): Promise<void> {
+    const key = `terminal:session:${projectId}:${terminalId}`;
+    await this.redisClient.set(key, JSON.stringify({ workerId, createdAt: Date.now() }), {
+      EX: 3600, // Expire after 1 hour of inactivity
+    });
+  }
+
+  /**
+   * Remove a terminal session
+   */
+  async unregisterTerminalSession(
+    projectId: string,
+    terminalId: string
+  ): Promise<void> {
+    const key = `terminal:session:${projectId}:${terminalId}`;
+    await this.redisClient.del(key);
+  }
+
+  /**
+   * Check if a terminal session is active
+   */
+  async isTerminalSessionActive(
+    projectId: string,
+    terminalId: string
+  ): Promise<boolean> {
+    const key = `terminal:session:${projectId}:${terminalId}`;
+    const session = await this.redisClient.get(key);
+    return !!session;
   }
 
   async close(): Promise<void> {
