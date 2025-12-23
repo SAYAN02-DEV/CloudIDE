@@ -431,6 +431,48 @@ export class WebSocketServer {
         socket.join(`terminal:${projectId}:${terminalId}`);
       });
 
+      // Chat message - broadcast to project room
+      socket.on('chat-message', async (data: {
+        projectId: string;
+        message: string;
+        timestamp: Date;
+      }) => {
+        const { projectId, message, timestamp } = data;
+        
+        console.log(`💬 Chat message from ${socket.data.username} in project ${projectId}: ${message}`);
+        
+        // Broadcast to all users in the project room
+        this.io.to(`project:${projectId}`).emit('chat-message', {
+          userId: socket.data.userId,
+          username: socket.data.username,
+          message,
+          timestamp,
+        });
+      });
+
+      // AI response - broadcast to project room
+      socket.on('ai-response', async (data: {
+        projectId: string;
+        message: string;
+        fileOperations: Array<{
+          action: string;
+          path: string;
+          description: string;
+        }>;
+        timestamp: Date;
+      }) => {
+        const { projectId, message, fileOperations, timestamp } = data;
+        
+        console.log(`🤖 AI response in project ${projectId} with ${fileOperations.length} file operations`);
+        
+        // Broadcast to all users in the project room
+        this.io.to(`project:${projectId}`).emit('ai-response', {
+          message,
+          fileOperations,
+          timestamp,
+        });
+      });
+
       // Disconnect
       socket.on('disconnect', async () => {
         console.log(`❌ Client disconnected: ${socket.id}`);

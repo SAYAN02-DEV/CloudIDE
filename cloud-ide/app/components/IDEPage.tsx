@@ -3,7 +3,9 @@
 import React, { useState, useEffect } from 'react';
 import { CollaborativeEditor } from '@/app/components/CollaborativeEditor';
 import { CollaborativeTerminal } from '@/app/components/CollaborativeTerminal';
+import { ChatPanel } from '@/app/components/ChatPanel';
 import { ResizablePanel, ResizablePanelGroup, ResizableHandle } from '@/components/ui/resizable-panels';
+import { Bot } from 'lucide-react';
 
 interface IDEPageProps {
   projectId: string;
@@ -31,6 +33,7 @@ export default function IDEPage({ projectId, userId, username, token }: IDEPageP
   const [showNewFolderDialog, setShowNewFolderDialog] = useState(false);
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; node: FileNode } | null>(null);
   const [selectedFolder, setSelectedFolder] = useState<string>(''); // For creating files in specific folder
+  const [showChatPanel, setShowChatPanel] = useState(false);
 
   useEffect(() => {
     loadProjectFiles();
@@ -346,6 +349,18 @@ export default function IDEPage({ projectId, userId, username, token }: IDEPageP
           <span className="text-sm text-gray-400">Project: {projectId}</span>
         </div>
         <div className="flex items-center gap-2">
+          <button
+            onClick={() => setShowChatPanel(!showChatPanel)}
+            className={`flex items-center gap-2 px-3 py-1 rounded transition-colors ${
+              showChatPanel 
+                ? 'bg-blue-600 text-white' 
+                : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+            }`}
+            title="AI Assistant"
+          >
+            <Bot className="w-4 h-4" />
+            <span className="text-sm">AI</span>
+          </button>
           <span className="text-sm text-gray-400">{username}</span>
         </div>
       </div>
@@ -382,7 +397,7 @@ export default function IDEPage({ projectId, userId, username, token }: IDEPageP
           <ResizableHandle />
 
           {/* Editor and Terminal */}
-          <ResizablePanel defaultSize={80}>
+          <ResizablePanel defaultSize={showChatPanel ? 60 : 80}>
             <ResizablePanelGroup direction="vertical">
               {/* Editor */}
               <ResizablePanel defaultSize={showTerminal ? 60 : 100} minSize={30}>
@@ -425,6 +440,20 @@ export default function IDEPage({ projectId, userId, username, token }: IDEPageP
               )}
             </ResizablePanelGroup>
           </ResizablePanel>
+
+          {/* Chat Panel */}
+          {showChatPanel && (
+            <>
+              <ResizableHandle />
+              <ResizablePanel defaultSize={20} minSize={15} maxSize={40}>
+                <ChatPanel
+                  projectId={projectId}
+                  token={token}
+                  onFileOperationComplete={loadProjectFiles}
+                />
+              </ResizablePanel>
+            </>
+          )}
         </ResizablePanelGroup>
       </div>
 

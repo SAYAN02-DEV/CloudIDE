@@ -112,8 +112,78 @@ const sessionSchema = new Schema<ISession>(
   }
 );
 
+// ChatMessage Interface
+export interface IChatMessage extends Document {
+  projectId: string;
+  userId: mongoose.Types.ObjectId;
+  role: 'user' | 'assistant' | 'system';
+  content: string;
+  timestamp: Date;
+  fileOperations?: Array<{
+    action: 'create' | 'edit' | 'delete' | 'read';
+    path: string;
+    content?: string;
+    description: string;
+  }>;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+// ChatMessage Schema
+const chatMessageSchema = new Schema<IChatMessage>(
+  {
+    projectId: {
+      type: String,
+      required: true,
+      index: true,
+    },
+    userId: {
+      type: Schema.Types.ObjectId,
+      ref: 'User',
+      required: true,
+      index: true,
+    },
+    role: {
+      type: String,
+      enum: ['user', 'assistant', 'system'],
+      required: true,
+    },
+    content: {
+      type: String,
+      required: true,
+    },
+    timestamp: {
+      type: Date,
+      default: Date.now,
+      index: true,
+    },
+    fileOperations: [{
+      action: {
+        type: String,
+        enum: ['create', 'edit', 'delete', 'read'],
+        required: true,
+      },
+      path: {
+        type: String,
+        required: true,
+      },
+      content: {
+        type: String,
+      },
+      description: {
+        type: String,
+        required: true,
+      },
+    }],
+  },
+  {
+    timestamps: true,
+  }
+);
+
 // Export Models
 export const User: Model<IUser> = mongoose.models.User || mongoose.model<IUser>('User', userSchema);
 export const Project: Model<IProject> = mongoose.models.Project || mongoose.model<IProject>('Project', projectSchema);
 export const Session: Model<ISession> = mongoose.models.Session || mongoose.model<ISession>('Session', sessionSchema);
+export const ChatMessage: Model<IChatMessage> = mongoose.models.ChatMessage || mongoose.model<IChatMessage>('ChatMessage', chatMessageSchema);
 

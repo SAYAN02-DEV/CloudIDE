@@ -6,24 +6,30 @@ A fully-featured collaborative cloud-based IDE with real-time editing, terminal 
 
 ### Core Components
 
-1. **Collaborative Editing (CRDT + Redis + WebSocket)**
+1. **🤖 AI-Powered File Operations**
+   - Natural language file creation, editing, and deletion
+   - Google Gemini AI integration (free tier) for intelligent code generation
+   - Context-aware project understanding
+   - Real-time chat interface with file operation tracking
+
+2. **Collaborative Editing (CRDT + Redis + WebSocket)**
    - Yjs CRDT for conflict-free collaborative editing
    - Redis pub/sub for broadcasting changes
    - WebSocket connections for real-time sync
    - State persistence in Redis
 
-2. **Storage (AWS S3)**
+3. **Storage (AWS S3)**
    - All project files stored in S3
    - Automatic sync on file changes
    - Efficient file retrieval for workers
 
-3. **Terminal Service (SQS + Kubernetes)**
+4. **Terminal Service (SQS + Kubernetes)**
    - Commands queued in AWS SQS
    - Auto-scaling Kubernetes worker pods
    - Docker containers execute commands
    - Output streamed back via Redis + WebSocket
 
-4. **Authentication & Authorization**
+5. **Authentication & Authorization**
    - JWT-based authentication
    - MongoDB for user/project storage
    - Secure WebSocket connections
@@ -42,6 +48,21 @@ A fully-featured collaborative cloud-based IDE with real-time editing, terminal 
 
 ```bash
 cd cloud-ide
+npm install
+```
+
+### 2. AI Chatbot Setup (Quick Start)
+
+```bash
+# Install AI chatbot feature
+chmod +x install-ai-chatbot.sh
+./install-ai-chatbot.sh
+
+# Add your Gemini API key to .env
+# GEMINI_API_KEY=your-gemini-api-key-here
+```
+
+### 3. Environment Configuration
 npm install
 ```
 
@@ -77,6 +98,10 @@ NEXT_PUBLIC_WS_URL=ws://localhost:8080
 # Security
 JWT_SECRET=your-secret-key
 SESSION_SECRET=your-session-key
+
+# Google Gemini (for AI Chatbot - FREE!)
+GEMINI_API_KEY=your-gemini-api-key
+GEMINI_MODEL=gemini-1.5-flash
 ```
 
 ### 3. AWS Setup
@@ -132,6 +157,46 @@ kubectl create namespace cloudide-workers
 # Then apply:
 kubectl apply -f k8s/worker-deployment.yaml
 ```
+
+## 🤖 AI Chatbot Feature
+
+The Cloud IDE includes an intelligent AI assistant that can create, edit, and delete files based on natural language commands.
+
+### Quick Setup
+
+1. **Install OpenAI dependency**:
+```bash
+npm install openai
+```
+
+2. **Add OpenAI API key to .env**:
+```env
+OPENAI_API_KEY=your-openai-api-key-here
+OPENAI_MODEL=gpt-4
+```
+
+3. **Use the setup script**:
+```bash
+chmod +x scripts/setup-ai-chatbot.sh
+./scripts/setup-ai-chatbot.sh
+```
+
+### Usage Examples
+
+- **"Create a React component called UserProfile"** → Generates a complete React component with TypeScript
+- **"Add a README file with project description"** → Creates a comprehensive README.md
+- **"Update package.json to add lodash dependency"** → Modifies package.json with new dependency
+- **"Delete the old config file"** → Removes specified files safely
+
+### Features
+
+- 🧠 **Context-Aware**: AI understands your project structure and existing files
+- 🔄 **Real-time**: File operations are broadcast to all connected users instantly
+- 📝 **History**: Complete chat history with operation tracking
+- 🔒 **Secure**: All operations are authenticated and validated
+- 🎯 **Precise**: Structured file operations with clear descriptions
+
+For detailed documentation, see [CHATBOT_DEMO.md](./CHATBOT_DEMO.md).
 
 ## 🎯 Usage
 
@@ -229,6 +294,11 @@ curl http://localhost:3000/api/v2/projects/PROJECT_ID/files/index.js \
 - `GET /api/v2/projects/:id/files/:path` - Get file content
 - `DELETE /api/v2/projects/:id/files/:path` - Delete file
 
+### AI Chatbot
+- `POST /api/v2/projects/:id/chat` - Send message to AI assistant
+- `GET /api/v2/projects/:id/chat` - Get chat history
+- `DELETE /api/v2/projects/:id/chat` - Clear chat history
+
 ## 🔐 WebSocket Events
 
 ### Client → Server
@@ -239,6 +309,7 @@ curl http://localhost:3000/api/v2/projects/PROJECT_ID/files/index.js \
 - `cursor-update` - Update cursor position
 - `terminal-command` - Execute terminal command
 - `subscribe-terminal` - Subscribe to terminal output
+- `chat-message` - Send chat message to project room
 
 ### Server → Client
 - `file-opened` - File ready for editing
@@ -247,6 +318,8 @@ curl http://localhost:3000/api/v2/projects/PROJECT_ID/files/index.js \
 - `user-left` - User left project
 - `cursor-update` - Cursor position from others
 - `terminal-output` - Terminal command output
+- `chat-message` - Chat message from other users
+- `ai-response` - AI assistant response with file operations
 
 ## 🎨 Tech Stack
 
