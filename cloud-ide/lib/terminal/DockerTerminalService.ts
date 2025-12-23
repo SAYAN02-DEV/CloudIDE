@@ -80,7 +80,7 @@ export class DockerTerminalService extends EventEmitter {
         '--memory', '512m', // Memory limit
         '--cpus', '1', // CPU limit
         '--user', '1000:1000', // Run as non-root user
-        'ubuntu:22.04', // Base image
+        'cloudide-terminal:latest', // CloudIDE terminal image with Python, Node.js, etc.
         'bash'
       ].join(' ');
 

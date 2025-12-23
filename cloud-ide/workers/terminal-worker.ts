@@ -31,17 +31,24 @@ export class TerminalWorker {
     this.sqsService = getSQSService();
     this.s3Service = getS3Service();
     
-    this.redisPub = createClient({
-      socket: {
-        host: process.env.REDIS_HOST || 'localhost',
-        port: parseInt(process.env.REDIS_PORT || '6379'),
-      },
-      password: process.env.REDIS_PASSWORD || undefined,
-    });
+    // Only use Redis if configured
+    if (process.env.REDIS_HOST && process.env.REDIS_HOST !== 'localhost') {
+      this.redisPub = createClient({
+        socket: {
+          host: process.env.REDIS_HOST,
+          port: parseInt(process.env.REDIS_PORT || '6379'),
+        },
+        password: process.env.REDIS_PASSWORD || undefined,
+      });
+    } else {
+      console.warn('⚠️  Redis not configured, output will be stored in S3 only');
+    }
   }
 
   async initialize() {
-    await this.redisPub.connect();
+    if (this.redisPub) {
+      await this.redisPub.connect();
+    }
     await fs.mkdir(this.workspaceRoot, { recursive: true });
     console.log('✅ Terminal Worker initialized with persistent sessions');
   }
@@ -264,17 +271,21 @@ export class TerminalWorker {
     output: string
   ): Promise<void> {
     try {
-      await this.redisPub.publish(
-        `terminal:${projectId}:${terminalId}`,
-        JSON.stringify({
-          type: 'output',
-          projectId,
-          terminalId,
-          output,
-          timestamp: Date.now(),
-        })
-      );
-      console.log(`📡 Published output to Redis: terminal:${projectId}:${terminalId}`);
+      if (this.redisPub) {
+        await this.redisPub.publish(
+          `terminal:${projectId}:${terminalId}`,
+          JSON.stringify({
+            type: 'output',
+            projectId,
+            terminalId,
+            output,
+            timestamp: Date.now(),
+          })
+        );
+        console.log(`📡 Published output to Redis: terminal:${projectId}:${terminalId}`);
+      } else {
+        console.log(`📝 Output (Redis disabled): ${output.substring(0, 100)}...`);
+      }
     } catch (error) {
       console.error('❌ Error publishing output to Redis:', error);
     }

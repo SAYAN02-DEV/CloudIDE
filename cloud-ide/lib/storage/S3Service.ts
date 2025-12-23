@@ -26,7 +26,7 @@ export class S3Service {
     this.s3Client = new S3Client({
       region: process.env.AWS_REGION || 'us-east-1',
       endpoint: useLocalStack ? 'http://localhost:4566' : undefined,
-      forcePathStyle: useLocalStack, // Required for LocalStack
+      forcePathStyle: useLocalStack,
       credentials: {
         accessKeyId: process.env.AWS_ACCESS_KEY_ID || 'test',
         secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY || 'test',
@@ -36,7 +36,6 @@ export class S3Service {
     
     if (useLocalStack) {
       console.log('🔧 Using LocalStack for S3 (local development)');
-      // Auto-create bucket in LocalStack
       this.ensureBucketExists();
     }
   }

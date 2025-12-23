@@ -4,12 +4,12 @@
   "requiresCompatibilities": ["FARGATE"],
   "cpu": "512",
   "memory": "1024",
-  "executionRoleArn": "arn:aws:iam::YOUR_ACCOUNT_ID:role/ecsTaskExecutionRole",
-  "taskRoleArn": "arn:aws:iam::YOUR_ACCOUNT_ID:role/cloudide-worker-task-role",
+  "executionRoleArn": "arn:aws:iam::170722810509:role/ecsTaskExecutionRole",
+  "taskRoleArn": "arn:aws:iam::170722810509:role/cloudide-worker-task-role",
   "containerDefinitions": [
     {
       "name": "cloudide-worker",
-      "image": "YOUR_ACCOUNT_ID.dkr.ecr.ap-south-1.amazonaws.com/cloudide-worker:latest",
+      "image": "170722810509.dkr.ecr.ap-south-1.amazonaws.com/cloudide-worker:latest",
       "essential": true,
       "logConfiguration": {
         "logDriver": "awslogs",
@@ -27,36 +27,34 @@
         {
           "name": "AWS_REGION",
           "value": "ap-south-1"
-        }
-      ],
-      "secrets": [
+        },
         {
           "name": "MONGODB_URI",
-          "valueFrom": "arn:aws:secretsmanager:ap-south-1:YOUR_ACCOUNT_ID:secret:cloudide/mongodb-uri"
+          "value": "mongodb://localhost:27017/cloudide"
         },
         {
           "name": "REDIS_HOST",
-          "valueFrom": "arn:aws:secretsmanager:ap-south-1:YOUR_ACCOUNT_ID:secret:cloudide/redis-host"
+          "value": "localhost"
         },
         {
           "name": "REDIS_PORT",
-          "valueFrom": "arn:aws:secretsmanager:ap-south-1:YOUR_ACCOUNT_ID:secret:cloudide/redis-port"
+          "value": "6379"
         },
         {
           "name": "AWS_ACCESS_KEY_ID",
-          "valueFrom": "arn:aws:secretsmanager:ap-south-1:YOUR_ACCOUNT_ID:secret:cloudide/aws-access-key-id"
+          "value": "AKIASPP67LKGXXX3V47C"
         },
         {
           "name": "AWS_SECRET_ACCESS_KEY",
-          "valueFrom": "arn:aws:secretsmanager:ap-south-1:YOUR_ACCOUNT_ID:secret:cloudide/aws-secret-access-key"
+          "value": "hHXvr9FweFygeTSVTUJoamaAZI/XTvnHYZH6gdBn"
         },
         {
           "name": "AWS_S3_BUCKET_NAME",
-          "valueFrom": "arn:aws:secretsmanager:ap-south-1:YOUR_ACCOUNT_ID:secret:cloudide/s3-bucket-name"
+          "value": "cloudide-projects"
         },
         {
           "name": "AWS_SQS_QUEUE_URL",
-          "valueFrom": "arn:aws:secretsmanager:ap-south-1:YOUR_ACCOUNT_ID:secret:cloudide/sqs-queue-url"
+          "value": "https://sqs.ap-south-1.amazonaws.com/170722810509/cloudide-terminal-queue"
         }
       ]
     }

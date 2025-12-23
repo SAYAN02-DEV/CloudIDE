@@ -1,0 +1,60 @@
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "ECSFullAccess",
+      "Effect": "Allow",
+      "Action": [
+        "ecs:*"
+      ],
+      "Resource": "*"
+    },
+    {
+      "Sid": "ECRFullAccess",
+      "Effect": "Allow",
+      "Action": [
+        "ecr:*"
+      ],
+      "Resource": "*"
+    },
+    {
+      "Sid": "IAMRoleCreation",
+      "Effect": "Allow",
+      "Action": [
+        "iam:CreateRole",
+        "iam:PutRolePolicy",
+        "iam:AttachRolePolicy",
+        "iam:GetRole",
+        "iam:PassRole",
+        "iam:ListRoles",
+        "iam:ListAttachedRolePolicies"
+      ],
+      "Resource": [
+        "arn:aws:iam::170722810509:role/ecsTaskExecutionRole",
+        "arn:aws:iam::170722810509:role/cloudide-*"
+      ]
+    },
+    {
+      "Sid": "CloudWatchLogs",
+      "Effect": "Allow",
+      "Action": [
+        "logs:CreateLogGroup",
+        "logs:DescribeLogGroups",
+        "logs:CreateLogStream",
+        "logs:PutLogEvents",
+        "logs:DescribeLogStreams"
+      ],
+      "Resource": "*"
+    },
+    {
+      "Sid": "EC2ForECS",
+      "Effect": "Allow",
+      "Action": [
+        "ec2:DescribeVpcs",
+        "ec2:DescribeSubnets",
+        "ec2:DescribeSecurityGroups"
+      ],
+      "Resource": "*"
+    }
+  ]
+}

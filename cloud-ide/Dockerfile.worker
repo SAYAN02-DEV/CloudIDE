@@ -15,14 +15,11 @@ RUN apk add --no-cache \
 # Copy package files
 COPY package*.json ./
 
-# Install dependencies
-RUN npm ci --only=production
+# Install ALL dependencies (including devDependencies for build)
+RUN npm ci
 
 # Copy application code
 COPY . .
-
-# Build TypeScript files
-RUN npm run build
 
 # Create workspace directory
 RUN mkdir -p /tmp/workspaces
@@ -30,5 +27,5 @@ RUN mkdir -p /tmp/workspaces
 # Set environment variables
 ENV NODE_ENV=production
 
-# Run the worker
-CMD ["node", "dist/workers/terminal-worker.js"]
+# Run the worker using tsx (no build needed)
+CMD ["npx", "tsx", "workers/terminal-worker.ts"]

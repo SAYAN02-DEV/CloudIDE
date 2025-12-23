@@ -88,7 +88,7 @@ export class ECSTerminalService extends EventEmitter {
 
     try {
       // Launch ECS Fargate task
-      const containerName = 'terminal';
+      const containerName = 'cloudide-worker';
       const taskResponse = await this.ecsClient.send(
         new RunTaskCommand({
           cluster: this.clusterName,
