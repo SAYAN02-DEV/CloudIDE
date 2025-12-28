@@ -1,75 +1,32 @@
 #!/bin/bash
 
-# AI Chatbot Feature Setup Script
-# This script helps set up the AI chatbot feature for the Cloud IDE
+echo "Installing AI Chatbot Feature with Google Gemini..."
 
-set -e
+# Install Gemini dependency
+echo "Installing Google Generative AI package..."
+npm install @google/generative-ai
 
-echo "Setting up AI Chatbot Feature for Cloud IDE..."
-
-# Check if we're in the right directory
-if [ ! -f "package.json" ]; then
-    echo "Error: Please run this script from the cloud-ide directory"
-    exit 1
-fi
-
-# Install OpenAI dependency
-echo "Installing OpenAI dependency..."
-npm install openai@^4.73.1
-
-# Check if .env file exists
-if [ ! -f ".env" ]; then
-    echo "Creating .env file from template..."
-    cp .env.example .env
-fi
-
-# Check if OpenAI API key is set
-if ! grep -q "OPENAI_API_KEY=" .env; then
-    echo "Adding OpenAI configuration to .env..."
+# Check if Gemini API key is configured
+if ! grep -q "GEMINI_API_KEY" .env; then
+    echo "Adding Gemini configuration to .env..."
     echo "" >> .env
-    echo "# OpenAI Configuration" >> .env
-    echo "OPENAI_API_KEY=your-openai-api-key-here" >> .env
-    echo "OPENAI_MODEL=gpt-4" >> .env
-fi
-
-# Check MongoDB connection
-echo "Checking MongoDB connection..."
-if ! command -v mongosh &> /dev/null && ! command -v mongo &> /dev/null; then
-    echo "Warning: MongoDB CLI not found. Make sure MongoDB is running."
+    echo "# Google Gemini Configuration" >> .env
+    echo "GEMINI_API_KEY=your-gemini-api-key-here" >> .env
+    echo "GEMINI_MODEL=models/gemini-2.5-flash" >> .env
+    echo ""
+    echo "Please update your .env file with your actual Gemini API key!"
+    echo "Get your free API key at: https://makersuite.google.com/app/apikey"
 else
-    echo "MongoDB CLI found"
+    echo "Gemini configuration already exists in .env"
 fi
-
-# Check Redis connection
-echo "Checking Redis connection..."
-if ! command -v redis-cli &> /dev/null; then
-    echo "Warning: Redis CLI not found. Make sure Redis is running."
-else
-    if redis-cli ping > /dev/null 2>&1; then
-        echo "Redis is running"
-    else
-        echo "Warning: Redis is not responding. Make sure Redis is running."
-    fi
-fi
-
-# Build the project
-echo "Building the project..."
-npm run build
 
 echo ""
-echo "AI Chatbot Feature setup complete!"
+echo "AI Chatbot feature with Gemini installed successfully!"
 echo ""
 echo "Next steps:"
-echo "1. Set your OpenAI API key in the .env file:"
-echo "   OPENAI_API_KEY=your-actual-api-key-here"
+echo "1. Get your free Gemini API key: https://makersuite.google.com/app/apikey"
+echo "2. Add your Gemini API key to .env file"
+echo "3. Start the application: npm run dev:all"
+echo "4. Click the 'AI' button in the IDE to start chatting!"
 echo ""
-echo "2. Make sure MongoDB and Redis are running:"
-echo "   - MongoDB: mongod"
-echo "   - Redis: redis-server"
-echo ""
-echo "3. Start the development servers:"
-echo "   npm run dev:all"
-echo ""
-echo "4. Open the IDE and click the 'AI' button to start chatting!"
-echo ""
-echo "For more information, see CHATBOT_DEMO.md"
+echo "See AI_CHATBOT_GUIDE.md for usage examples"
