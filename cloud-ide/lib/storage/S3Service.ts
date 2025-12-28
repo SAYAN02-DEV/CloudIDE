@@ -176,6 +176,12 @@ export class S3Service {
       throw error;
     }
   }
+  // download file as a string
+  async downloadFileAsString(projectId: string, filePath: string): Promise<string> {
+    const buffer = await this.downloadFile(projectId, filePath);
+    return buffer.toString('utf-8');
+  }
+
   // delete file from s3
   async deleteFile(projectId: string, filePath: string): Promise<void> {
     const key = `projects/${projectId}/${filePath}`;
