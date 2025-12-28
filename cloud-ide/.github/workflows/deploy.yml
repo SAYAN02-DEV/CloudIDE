@@ -17,13 +17,6 @@ jobs:
           username: ${{ secrets.SSH_USERNAME }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           port: ${{ secrets.SSH_PORT || 22 }}
-          script_stop: true
+          command_timeout: 30m
           script: |
-            source ~/.bashrc
-            source ~/.profile
-            cd CloudIDE/cloud-ide
-            git checkout test
-            git pull origin test
-            npm install
-            npm run build
-            pm2 restart cloud-ide || pm2 start npm --name "cloud-ide" -- run start
+            bash -l -c 'cd CloudIDE/cloud-ide && git checkout test && git pull origin test && npm install && npm run build && pm2 restart cloud-ide || pm2 start npm --name "cloud-ide" -- run start'
