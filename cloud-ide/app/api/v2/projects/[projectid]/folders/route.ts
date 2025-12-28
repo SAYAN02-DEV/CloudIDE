@@ -10,7 +10,7 @@ export async function POST(
     const body = await req.json();
     const folderPath: string = (body?.path || '').trim();
 
-    console.log(`Creating folder "${folderPath}" in project ${projectId}`);
+    console.log(`📁 Creating folder "${folderPath}" in project ${projectId}`);
 
     if (!folderPath) {
       return new Response(JSON.stringify({ error: 'Missing folder path' }), {
@@ -31,14 +31,14 @@ export async function POST(
     await s3.createCRDTFolder(projectId, folderPath);
 
     const normalizedPath = folderPath.replace(/^\/+/, '').replace(/\/+$/, '') + '/';
-    console.log(`Folder created: ${normalizedPath}`);
+    console.log(`✅ Folder created: ${normalizedPath}`);
 
     return new Response(
       JSON.stringify({ ok: true, path: normalizedPath }),
       { status: 201, headers: { 'Content-Type': 'application/json' } }
     );
   } catch (error) {
-    console.error('Error creating folder:', error);
+    console.error('❌ Error creating folder:', error);
     return new Response(JSON.stringify({ error: 'Internal Server Error' }), {
       status: 500,
       headers: { 'Content-Type': 'application/json' },
