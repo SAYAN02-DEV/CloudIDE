@@ -68,10 +68,10 @@ export class ECSTaskService {
       const response = await this.ecsClient.send(command);
       const taskArns = response.tasks?.map((task) => task.taskArn || '') || [];
       
-      console.log(`✅ Launched ${taskArns.length} ECS Fargate task(s)`);
+      console.log(`Launched ${taskArns.length} ECS Fargate task(s)`);
       return taskArns;
     } catch (error) {
-      console.error('❌ Error launching ECS task:', error);
+      console.error('Error launching ECS task:', error);
       throw error;
     }
   }
@@ -90,7 +90,7 @@ export class ECSTaskService {
       const response = await this.ecsClient.send(command);
       return response.taskArns?.length || 0;
     } catch (error) {
-      console.error('❌ Error getting running task count:', error);
+      console.error('Error getting running task count:', error);
       return 0;
     }
   }
@@ -110,7 +110,7 @@ export class ECSTaskService {
       const response = await this.ecsClient.send(command);
       return response.tasks || [];
     } catch (error) {
-      console.error('❌ Error describing tasks:', error);
+      console.error('Error describing tasks:', error);
       return [];
     }
   }
@@ -127,9 +127,9 @@ export class ECSTaskService {
 
     try {
       await this.ecsClient.send(command);
-      console.log(`✅ Stopped ECS task: ${taskArn}`);
+      console.log(`Stopped ECS task: ${taskArn}`);
     } catch (error) {
-      console.error('❌ Error stopping task:', error);
+      console.error('Error stopping task:', error);
       throw error;
     }
   }
@@ -149,11 +149,11 @@ export class ECSTaskService {
       maxTasks
     );
 
-    console.log(`📊 Queue depth: ${queueDepth}, Current tasks: ${currentRunning}, Desired: ${desiredTasks}`);
+    console.log(`Queue depth: ${queueDepth}, Current tasks: ${currentRunning}, Desired: ${desiredTasks}`);
 
     if (desiredTasks > currentRunning) {
       const tasksToLaunch = desiredTasks - currentRunning;
-      console.log(`🚀 Scaling up: Launching ${tasksToLaunch} new task(s)`);
+      console.log(`Scaling up: Launching ${tasksToLaunch} new task(s)`);
       await this.launchWorkerTask(tasksToLaunch);
     }
     // Note: Tasks will automatically stop when queue is empty (no work to do)

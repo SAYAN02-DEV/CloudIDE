@@ -32,9 +32,9 @@ export class CRDTService {
         this.redisSub.connect(),
       ]);
       this.initialized = true;
-      console.log('✅ CRDT Service initialized with Redis');
+      console.log('CRDT Service initialized with Redis');
     } catch (error) {
-      console.error('❌ Failed to initialize CRDT Service:', error);
+      console.error('Failed to initialize CRDT Service:', error);
       throw error;
     }
   }

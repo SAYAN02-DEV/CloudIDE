@@ -31,10 +31,9 @@ export class DockerTerminalService extends EventEmitter {
   async initialize(): Promise<void> {
     await fs.mkdir(this.workspaceRoot, { recursive: true });
     
-    // Check if Docker is available
     try {
       await this.execCommand('docker --version');
-      console.log('✅ Docker Terminal Service initialized');
+      console.log('Docker Terminal Service initialized');
     } catch (error) {
       throw new Error('Docker is not available. Please install Docker to use terminal features.');
     }
@@ -54,42 +53,36 @@ export class DockerTerminalService extends EventEmitter {
   ): Promise<TerminalSession> {
     const sessionKey = this.getSessionKey(projectId, terminalId);
 
-    // Check if session already exists
     if (this.sessions.has(sessionKey)) {
-      console.log(`♻️  Reusing existing session: ${sessionKey}`);
+      console.log(`Reusing existing session: ${sessionKey}`);
       return this.sessions.get(sessionKey)!;
     }
 
-    // Prepare workspace on host
     const workspacePath = await this.prepareWorkspace(projectId);
 
-    // Create Docker container for this session
     const containerName = `cloudide-${projectId}-${terminalId}`.replace(/[^a-zA-Z0-9_-]/g, '-');
     
     try {
-      // Run Docker container with workspace mounted
-      // Using alpine or ubuntu image with limited permissions
       const dockerCommand = [
         'docker', 'run',
-        '-dit', // detached, interactive, tty
+        '-dit',
         '--name', containerName,
-        '--rm', // Remove container when it stops
-        '--network', 'none', // No network access by default
-        '-v', `${workspacePath}:/workspace`, // Mount workspace
-        '-w', '/workspace', // Set working directory
-        '--memory', '512m', // Memory limit
-        '--cpus', '1', // CPU limit
-        '--user', '1000:1000', // Run as non-root user
-        'cloudide-terminal:latest', // CloudIDE terminal image with Python, Node.js, etc.
+        '--rm',
+        '--network', 'none',
+        '-v', `${workspacePath}:/workspace`,
+        '-w', '/workspace',
+        '--memory', '512m',
+        '--cpus', '1',
+        '--user', '1000:1000',
+        'cloudide-terminal:latest',
         'bash'
       ].join(' ');
 
       const result = await this.execCommand(dockerCommand);
       const containerId = result.trim();
 
-      console.log(`✅ Created Docker container: ${containerName} (${containerId.substring(0, 12)})`);
+      console.log(`Created Docker container: ${containerName} (${containerId.substring(0, 12)})`);
 
-      // Create PTY that executes commands in the container
       const ptyProcess = pty.spawn('docker', ['exec', '-it', containerId, 'bash'], {
         name: 'xterm-color',
         cols: 80,
@@ -98,7 +91,6 @@ export class DockerTerminalService extends EventEmitter {
         env: process.env,
       });
 
-      // Create session
       const session: TerminalSession = {
         projectId,
         terminalId,
@@ -113,7 +105,6 @@ export class DockerTerminalService extends EventEmitter {
 
       this.sessions.set(sessionKey, session);
 
-      // Handle PTY output
       ptyProcess.onData((data) => {
         session.lastActivityAt = Date.now();
         this.emit('output', {
@@ -123,23 +114,19 @@ export class DockerTerminalService extends EventEmitter {
         });
       });
 
-      // Handle PTY exit
       ptyProcess.onExit((exitCode) => {
-        console.log(`🔴 PTY process exited for ${sessionKey} with code ${exitCode.exitCode}`);
+        console.log(`PTY process exited for ${sessionKey} with code ${exitCode.exitCode}`);
         this.terminateSession(projectId, terminalId);
       });
 
-      console.log(`✅ Created isolated terminal session in container: ${sessionKey}`);
+      console.log(`Created isolated terminal session in container: ${sessionKey}`);
       return session;
     } catch (error) {
-      console.error('❌ Error creating Docker container:', error);
+      console.error('Error creating Docker container:', error);
       throw error;
     }
   }
 
-  /**
-   * Write command to terminal
-   */
   async writeToTerminal(
     projectId: string,
     terminalId: string,
@@ -156,9 +143,6 @@ export class DockerTerminalService extends EventEmitter {
     session.ptyProcess.write(data);
   }
 
-  /**
-   * Resize terminal
-   */
   async resizeTerminal(
     projectId: string,
     terminalId: string,
@@ -173,9 +157,6 @@ export class DockerTerminalService extends EventEmitter {
     }
   }
 
-  /**
-   * Terminate a terminal session and stop the container
-   */
   async terminateSession(projectId: string, terminalId: string): Promise<void> {
     const sessionKey = this.getSessionKey(projectId, terminalId);
     const session = this.sessions.get(sessionKey);
@@ -184,44 +165,34 @@ export class DockerTerminalService extends EventEmitter {
       return;
     }
 
-    // Kill PTY process
     try {
       session.ptyProcess.kill();
     } catch (error) {
       console.error('Error killing PTY process:', error);
     }
 
-    // Stop and remove Docker container
     try {
       await this.execCommand(`docker stop ${session.containerId}`);
-      console.log(`🛑 Stopped Docker container: ${session.containerName}`);
+      console.log(`Stopped Docker container: ${session.containerName}`);
     } catch (error) {
       console.error('Error stopping container:', error);
     }
 
-    // Sync workspace to S3
     try {
       await this.syncWorkspaceToS3(projectId, session.workspacePath);
     } catch (error) {
       console.error('Error syncing workspace to S3:', error);
     }
 
-    // Remove session
     this.sessions.delete(sessionKey);
-    console.log(`✅ Terminated terminal session: ${sessionKey}`);
+    console.log(`Terminated terminal session: ${sessionKey}`);
   }
 
-  /**
-   * Get session
-   */
   getSession(projectId: string, terminalId: string): TerminalSession | undefined {
     const sessionKey = this.getSessionKey(projectId, terminalId);
     return this.sessions.get(sessionKey);
   }
 
-  /**
-   * Execute a shell command and return output
-   */
   private execCommand(command: string): Promise<string> {
     return new Promise((resolve, reject) => {
       const proc = spawn(command, {
@@ -253,37 +224,28 @@ export class DockerTerminalService extends EventEmitter {
     });
   }
 
-  /**
-   * Prepare workspace by downloading files from S3
-   */
   private async prepareWorkspace(projectId: string): Promise<string> {
     const workspacePath = path.join(this.workspaceRoot, projectId);
 
     try {
-      // Create workspace directory
       await fs.mkdir(workspacePath, { recursive: true });
 
-      // List all CRDT files for this project
       const files = await this.s3Service.listCRDTFiles(projectId);
 
-      console.log(`📥 Downloading ${files.length} files for project ${projectId}`);
+      console.log(`Downloading ${files.length} files for project ${projectId}`);
 
-      // Download and convert each CRDT file to actual file
       for (const file of files) {
         await this.downloadAndConvertFile(projectId, file.key, workspacePath);
       }
 
-      console.log(`✅ Workspace prepared: ${workspacePath}`);
+      console.log(`Workspace prepared: ${workspacePath}`);
       return workspacePath;
     } catch (error) {
-      console.error('❌ Error preparing workspace:', error);
+      console.error('Error preparing workspace:', error);
       throw error;
     }
   }
 
-  /**
-   * Download CRDT state from S3 and convert to actual file
-   */
   private async downloadAndConvertFile(
     projectId: string,
     filePath: string,
@@ -308,20 +270,17 @@ export class DockerTerminalService extends EventEmitter {
       await fs.mkdir(path.dirname(fullPath), { recursive: true });
       await fs.writeFile(fullPath, content);
 
-      console.log(`✅ Converted file: ${filePath} (${content.length} bytes)`);
+      console.log(`Converted file: ${filePath} (${content.length} bytes)`);
     } catch (error) {
-      console.error(`❌ Error converting file ${filePath}:`, error);
+      console.error(`Error converting file ${filePath}:`, error);
     }
   }
 
-  /**
-   * Sync workspace changes back to S3
-   */
   private async syncWorkspaceToS3(projectId: string, workspacePath: string): Promise<void> {
     try {
       const { files, folders } = await this.scanDirectory(workspacePath, workspacePath);
       
-      console.log(`🔄 Syncing ${files.length} files to S3...`);
+      console.log(`Syncing ${files.length} files to S3...`);
 
       for (const folderPath of folders) {
         await this.s3Service.createCRDTFolder(projectId, folderPath);
@@ -331,9 +290,9 @@ export class DockerTerminalService extends EventEmitter {
         await this.uploadFileToCRDT(projectId, filePath, workspacePath);
       }
 
-      console.log(`✅ Workspace synced to S3`);
+      console.log(`Workspace synced to S3`);
     } catch (error) {
-      console.error('❌ Error syncing workspace to S3:', error);
+      console.error('Error syncing workspace to S3:', error);
     }
   }
 
@@ -388,9 +347,6 @@ export class DockerTerminalService extends EventEmitter {
     }
   }
 
-  /**
-   * Cleanup all sessions
-   */
   async cleanup(): Promise<void> {
     for (const [key, session] of this.sessions.entries()) {
       await this.terminateSession(session.projectId, session.terminalId);

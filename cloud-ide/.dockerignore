@@ -1,0 +1,36 @@
+# Ignore node_modules
+node_modules/
+npm-debug.log*
+
+# Ignore .next build output
+.next/
+out/
+
+# Ignore environment files
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# Ignore git
+.git/
+.gitignore
+
+# Ignore documentation
+*.md
+docs/
+
+# Ignore tests
+*.test.ts
+*.test.tsx
+*.spec.ts
+*.spec.tsx
+
+# Ignore IDE files
+.vscode/
+.idea/
+
+# Ignore temporary files
+*.log
+tmp/
+temp/

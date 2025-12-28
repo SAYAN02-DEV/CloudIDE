@@ -40,7 +40,7 @@ export class SQSService {
     this.queueUrl = process.env.AWS_SQS_QUEUE_URL || 'http://localhost:4566/000000000000/cloudide-terminal-queue';
     
     if (this.useLocalStack) {
-      console.log('🔧 Using LocalStack for SQS (local development)');
+      console.log('Using LocalStack for SQS (local development)');
     }
   }
 
@@ -55,7 +55,7 @@ export class SQSService {
     }
     
     this.initialized = true;
-    console.log(`✅ SQS Service initialized with queue URL: ${this.queueUrl}`);
+    console.log(`SQS Service initialized with queue URL: ${this.queueUrl}`);
   }
 
   /**
@@ -73,7 +73,7 @@ export class SQSService {
         
         if (getUrlResult.QueueUrl) {
           this.queueUrl = getUrlResult.QueueUrl;
-          console.log(`✅ SQS queue already exists: ${this.queueUrl}`);
+          console.log(`SQS queue already exists: ${this.queueUrl}`);
         }
       } catch {
         // Queue doesn't exist, create it
@@ -89,10 +89,10 @@ export class SQSService {
           this.queueUrl = result.QueueUrl;
         }
         
-        console.log(`✅ Created SQS queue: ${this.queueUrl}`);
+        console.log(`Created SQS queue: ${this.queueUrl}`);
       }
     } catch (error) {
-      console.error('⚠️  Error ensuring SQS queue exists:', error);
+      console.error('Error ensuring SQS queue exists:', error);
     }
   }
 
@@ -101,7 +101,7 @@ export class SQSService {
    */
   async sendCommand(command: TerminalCommand): Promise<void> {
     try {
-      console.log(`📤 Sending to queue: ${this.queueUrl}`);
+      console.log(`Sending to queue: ${this.queueUrl}`);
       
       const message = new SendMessageCommand({
         QueueUrl: this.queueUrl,
@@ -123,9 +123,9 @@ export class SQSService {
       });
 
       const result = await this.sqsClient.send(message);
-      console.log(`✅ Sent command to SQS: ${command.command} (MessageId: ${result.MessageId})`);
+      console.log(`Sent command to SQS: ${command.command} (MessageId: ${result.MessageId})`);
     } catch (error) {
-      console.error('❌ Error sending command to SQS:', error);
+      console.error('Error sending command to SQS:', error);
       throw error;
     }
   }
@@ -146,14 +146,14 @@ export class SQSService {
         return [];
       }
 
-      console.log(`📥 Received ${result.Messages.length} message(s) from queue`);
+      console.log(`Received ${result.Messages.length} message(s) from queue`);
 
       return result.Messages.map(msg => ({
         command: JSON.parse(msg.Body || '{}') as TerminalCommand,
         receiptHandle: msg.ReceiptHandle!,
       }));
     } catch (error) {
-      console.error('❌ Error receiving commands from SQS:', error);
+      console.error('Error receiving commands from SQS:', error);
       return [];
     }
   }
@@ -167,9 +167,9 @@ export class SQSService {
         QueueUrl: this.queueUrl,
         ReceiptHandle: receiptHandle,
       }));
-      console.log('✅ Deleted message from SQS queue');
+      console.log('Deleted message from SQS queue');
     } catch (error) {
-      console.error('❌ Error deleting message from SQS:', error);
+      console.error('Error deleting message from SQS:', error);
     }
   }
 }

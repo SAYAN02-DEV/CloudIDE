@@ -3,7 +3,6 @@ import { createServer } from 'http';
 import { getCRDTService } from '../crdt/CRDTService';
 import { getS3Service } from '../storage/S3Service';
 import { getSQSService } from '../queue/SQSService';
-import { getECSTerminalService } from '../terminal/ECSTerminalService';
 import { getDockerTerminalService } from '../terminal/DockerTerminalService';
 import { createClient, RedisClientType } from 'redis';
 import jwt from 'jsonwebtoken';
@@ -29,7 +28,7 @@ export class WebSocketServer {
   private io: SocketIOServer;
   private httpServer: any;
   private crdtService: ReturnType<typeof getCRDTService>;
-  private terminalService: ReturnType<typeof getECSTerminalService> | ReturnType<typeof getDockerTerminalService>;
+  private terminalService: ReturnType<typeof getDockerTerminalService>;
   private redisPub: RedisClientType;
   private redisSub: RedisClientType;
   private userSessions: Map<string, Set<string>>; // projectId -> Set of socketIds
@@ -49,16 +48,9 @@ export class WebSocketServer {
     });
 
     this.crdtService = getCRDTService();
+    this.terminalService = getDockerTerminalService();
     
-    // Auto-select terminal service based on environment
-    const terminalMode = process.env.TERMINAL_MODE || 'docker';
-    if (terminalMode === 'ecs') {
-      console.log('🚀 Using ECS-based terminals (production mode)');
-      this.terminalService = getECSTerminalService();
-    } else {
-      console.log('🐳 Using Docker-based terminals (local development mode)');
-      this.terminalService = getDockerTerminalService();
-    }
+    console.log('Using Docker-based terminals');
     
     this.userSessions = new Map();
     this.saveTimeouts = new Map();
@@ -84,13 +76,13 @@ export class WebSocketServer {
     this.io.use((socket, next) => {
       const token = socket.handshake.auth.token;
       
-      console.log('🔐 Authentication attempt:', {
+      console.log('Authentication attempt:', {
         hasToken: !!token,
         socketId: socket.id,
       });
       
       if (!token) {
-        console.error('❌ Authentication failed: No token provided');
+        console.error('Authentication failed: No token provided');
         return next(new Error('Authentication error: No token provided'));
       }
 
@@ -98,13 +90,13 @@ export class WebSocketServer {
         const decoded = jwt.verify(token, process.env.JWT_SECRET || 'secret') as any;
         socket.data.userId = decoded.userId;
         socket.data.username = decoded.username;
-        console.log('✅ Authentication successful:', {
+        console.log('Authentication successful:', {
           userId: decoded.userId,
           username: decoded.username,
         });
         next();
       } catch (err) {
-        console.error('❌ Authentication failed: Invalid token', err);
+        console.error('Authentication failed: Invalid token', err);
         next(new Error('Authentication error: Invalid token'));
       }
     });
@@ -112,7 +104,7 @@ export class WebSocketServer {
 
   private setupEventHandlers(): void {
     this.io.on('connection', (socket) => {
-      console.log(`✅ Client connected: ${socket.id} (User: ${socket.data.username})`);
+      console.log(`Client connected: ${socket.id} (User: ${socket.data.username})`);
 
       // Join project room for collaboration
       socket.on('join-project', async (data: { projectId: string }) => {
@@ -132,10 +124,9 @@ export class WebSocketServer {
           socketId: socket.id,
         });
 
-        console.log(`👤 User ${socket.data.username} joined project ${projectId}`);
+        console.log(`User ${socket.data.username} joined project ${projectId}`);
       });
 
-      // Leave project room
       socket.on('leave-project', async (data: { projectId: string }) => {
         const { projectId } = data;
         
@@ -148,7 +139,7 @@ export class WebSocketServer {
           socketId: socket.id,
         });
 
-        console.log(`👤 User ${socket.data.username} left project ${projectId}`);
+        console.log(`User ${socket.data.username} left project ${projectId}`);
       });
 
       // Open file for collaboration
@@ -156,46 +147,39 @@ export class WebSocketServer {
         try {
           const { projectId, filePath } = data;
           
-          console.log(`📄 User ${socket.data.username} opening file ${filePath} in project ${projectId}`);
+          console.log(`User ${socket.data.username} opening file ${filePath} in project ${projectId}`);
           
           socket.join(`file:${projectId}:${filePath}`);
 
-          // Load CRDT state from S3 and sync with Redis
           try {
             const s3Service = getS3Service();
             const s3State = await s3Service.loadCRDTState(projectId, filePath);
             
             if (s3State && s3State.length > 2) {
-              console.log(`✅ Loaded CRDT state from S3, size: ${s3State.length} bytes, syncing with Redis`);
+              console.log(`Loaded CRDT state from S3, size: ${s3State.length} bytes, syncing with Redis`);
               
-              // Get or create document in Redis
               const doc = await this.crdtService.getDocument(projectId, filePath);
-              
-              // Get current state in Redis
               const currentState = await this.crdtService.getDocumentState(projectId, filePath);
               
-              // Only update if states differ
               if (currentState.length <= 2 || !this.arraysEqual(currentState, s3State)) {
-                console.log(`🔄 Syncing Redis with S3 CRDT state...`);
-                // Apply S3 state to Redis document
+                console.log(`Syncing Redis with S3 CRDT state...`);
                 const Y = await import('yjs');
                 Y.applyUpdate(doc, s3State);
-                console.log(`✅ Synced Redis CRDT with S3 state`);
+                console.log(`Synced Redis CRDT with S3 state`);
               } else {
-                console.log(`✅ Redis already in sync with S3 CRDT state`);
+                console.log(`Redis already in sync with S3 CRDT state`);
               }
             } else {
-              console.log(`📭 No CRDT state in S3 for ${filePath}, using Redis state`);
+              console.log(`No CRDT state in S3 for ${filePath}, using Redis state`);
             }
           } catch (s3Error: any) {
             if (s3Error?.name !== 'NoSuchKey' && !s3Error?.message?.includes('NoSuchKey')) {
-              console.log(`⚠️  S3 load failed:`, s3Error?.message || s3Error);
+              console.log(`S3 load failed:`, s3Error?.message || s3Error);
             } else {
-              console.log(`📭 File ${filePath} does not exist in S3 yet`);
+              console.log(`File ${filePath} does not exist in S3 yet`);
             }
           }
 
-          // Get current CRDT state from Redis (now synced with S3)
           const docState = await this.crdtService.getDocumentState(projectId, filePath);
           
           socket.emit('file-opened', {
@@ -204,9 +188,8 @@ export class WebSocketServer {
             state: Buffer.from(docState).toString('base64'),
           });
           
-          console.log(`📤 Sent CRDT state from Redis for ${filePath} (${docState.length} bytes)`);
+          console.log(`Sent CRDT state from Redis for ${filePath} (${docState.length} bytes)`);
 
-          // Check if this socket already has a subscription for this file
           const fileKey = `${projectId}:${filePath}`;
           if (!this.socketSubscriptions.has(socket.id)) {
             this.socketSubscriptions.set(socket.id, new Set());
@@ -214,13 +197,11 @@ export class WebSocketServer {
           
           const socketSubs = this.socketSubscriptions.get(socket.id)!;
           
-          // Only subscribe if not already subscribed
           if (!socketSubs.has(fileKey)) {
-            console.log(`🔔 Creating new subscription for ${socket.id} to ${fileKey}`);
+            console.log(`Creating new subscription for ${socket.id} to ${fileKey}`);
             
-            // Subscribe to document updates
             await this.crdtService.subscribeToDocument(projectId, filePath, (update) => {
-              console.log(`🔄 Broadcasting CRDT update for ${filePath} (${update.length} bytes)`);
+              console.log(`Broadcasting CRDT update for ${filePath} (${update.length} bytes)`);
               // Broadcast to all users in this file room EXCEPT the sender
               socket.to(`file:${projectId}:${filePath}`).emit('document-update', {
                 projectId,
@@ -231,12 +212,12 @@ export class WebSocketServer {
             
             socketSubs.add(fileKey);
           } else {
-            console.log(`⏭️  Subscription already exists for ${socket.id} to ${fileKey}`);
+            console.log(`Subscription already exists for ${socket.id} to ${fileKey}`);
           }
 
-          console.log(`✅ File ${filePath} opened successfully for ${socket.data.username}`);
+          console.log(`File ${filePath} opened successfully for ${socket.data.username}`);
         } catch (error) {
-          console.error('❌ Error opening file:', error);
+          console.error('Error opening file:', error);
           socket.emit('error', { message: 'Failed to open file' });
         }
       });
@@ -250,14 +231,13 @@ export class WebSocketServer {
         try {
           const { projectId, filePath, update } = data;
           
-          console.log(`✏️  User ${socket.data.username} editing ${filePath}`);
+          console.log(`User ${socket.data.username} editing ${filePath}`);
           
           const updateBuffer = Buffer.from(update, 'base64');
           await this.crdtService.applyUpdate(projectId, filePath, updateBuffer);
 
-          console.log(`✅ CRDT update applied for ${filePath}`);
+          console.log(`CRDT update applied for ${filePath}`);
           
-          // Debounced save CRDT state to S3 (wait 2 seconds after last edit)
           const fileKey = `${projectId}:${filePath}`;
           
           if (this.saveTimeouts.has(fileKey)) {
@@ -266,27 +246,23 @@ export class WebSocketServer {
           
           const timeout = setTimeout(async () => {
             try {
-              console.log(`💾 Auto-saving CRDT state for ${filePath} to S3...`);
+              console.log(`Auto-saving CRDT state for ${filePath} to S3...`);
               
-              // Get current CRDT state from Redis
               const state = await this.crdtService.getDocumentState(projectId, filePath);
               
-              // Save CRDT state (binary) to S3
               const s3Service = getS3Service();
               await s3Service.saveCRDTState(projectId, filePath, state);
               
-              console.log(`✅ Auto-saved CRDT state to S3: ${filePath} (${state.length} bytes)`);
+              console.log(`Auto-saved CRDT state to S3: ${filePath} (${state.length} bytes)`);
               this.saveTimeouts.delete(fileKey);
             } catch (saveError) {
-              console.error(`❌ Failed to auto-save CRDT state for ${filePath}:`, saveError);
+              console.error(`Failed to auto-save CRDT state for ${filePath}:`, saveError);
             }
           }, 2000);
           
           this.saveTimeouts.set(fileKey, timeout);
-          
-          // Broadcast will happen automatically through CRDT service subscription
         } catch (error) {
-          console.error('❌ Error applying document update:', error);
+          console.error('Error applying document update:', error);
         }
       });
 
@@ -311,17 +287,15 @@ export class WebSocketServer {
       }) => {
         const { projectId, terminalId } = data;
 
-        console.log(`🖥️  Terminal initialized: ${projectId}:${terminalId}`);
+        console.log(`Terminal initialized: ${projectId}:${terminalId}`);
         
         try {
-          // Create persistent terminal session
           await this.terminalService.createSession(
             projectId,
             terminalId,
             socket.data.userId
           );
 
-          // Setup output handler for this session
           const outputHandler = (output: { projectId: string; terminalId: string; data: string }) => {
             if (output.projectId === projectId && output.terminalId === terminalId) {
               socket.emit('terminal-output', {
@@ -332,14 +306,12 @@ export class WebSocketServer {
           };
 
           this.terminalService.on('output', outputHandler);
-
-          // Store handler for cleanup
           socket.data.terminalOutputHandler = outputHandler;
 
           socket.emit('terminal-ready', { terminalId });
-          console.log(`✅ Terminal session created: ${projectId}:${terminalId}`);
+          console.log(`Terminal session created: ${projectId}:${terminalId}`);
         } catch (error) {
-          console.error('❌ Error initializing terminal:', error);
+          console.error('Error initializing terminal:', error);
           socket.emit('terminal-output', {
             terminalId,
             output: `Error: Failed to initialize terminal\n`,
@@ -358,11 +330,10 @@ export class WebSocketServer {
         try {
           await this.terminalService.writeToTerminal(projectId, terminalId, input);
         } catch (error) {
-          console.error('❌ Error writing to terminal:', error);
+          console.error('Error writing to terminal:', error);
         }
       });
 
-      // Terminal command (for backwards compatibility)
       socket.on('terminal-command', async (data: {
         projectId: string;
         terminalId: string;
@@ -370,13 +341,12 @@ export class WebSocketServer {
       }) => {
         const { projectId, terminalId, command } = data;
 
-        console.log(`⌨️  Terminal command from ${socket.data.username}: ${command}`);
+        console.log(`Terminal command from ${socket.data.username}: ${command}`);
         
         try {
-          // Write command + newline to terminal
           await this.terminalService.writeToTerminal(projectId, terminalId, command + '\n');
         } catch (error) {
-          console.error('❌ Error sending command to terminal:', error);
+          console.error('Error sending command to terminal:', error);
           
           // Send error to client
           socket.emit('terminal-output', {
@@ -398,30 +368,27 @@ export class WebSocketServer {
         try {
           await this.terminalService.resizeTerminal(projectId, terminalId, cols, rows);
         } catch (error) {
-          console.error('❌ Error resizing terminal:', error);
+          console.error('Error resizing terminal:', error);
         }
       });
 
-      // Terminal termination - called when terminal component unmounts
       socket.on('terminal-close', async (data: {
         projectId: string;
         terminalId: string;
       }) => {
         const { projectId, terminalId } = data;
 
-        console.log(`❌ Terminal closed: ${projectId}:${terminalId}`);
+        console.log(`Terminal closed: ${projectId}:${terminalId}`);
         
         try {
-          // Remove output handler
           if (socket.data.terminalOutputHandler) {
             this.terminalService.off('output', socket.data.terminalOutputHandler);
             delete socket.data.terminalOutputHandler;
           }
 
-          // Terminate session
           await this.terminalService.terminateSession(projectId, terminalId);
         } catch (error) {
-          console.error('❌ Error terminating terminal:', error);
+          console.error('Error terminating terminal:', error);
         }
       });
 
@@ -439,9 +406,8 @@ export class WebSocketServer {
       }) => {
         const { projectId, message, timestamp } = data;
         
-        console.log(`💬 Chat message from ${socket.data.username} in project ${projectId}: ${message}`);
+        console.log(`Chat message from ${socket.data.username} in project ${projectId}: ${message}`);
         
-        // Broadcast to all users in the project room
         this.io.to(`project:${projectId}`).emit('chat-message', {
           userId: socket.data.userId,
           username: socket.data.username,
@@ -450,7 +416,6 @@ export class WebSocketServer {
         });
       });
 
-      // AI response - broadcast to project room
       socket.on('ai-response', async (data: {
         projectId: string;
         message: string;
@@ -463,7 +428,7 @@ export class WebSocketServer {
       }) => {
         const { projectId, message, fileOperations, timestamp } = data;
         
-        console.log(`🤖 AI response in project ${projectId} with ${fileOperations.length} file operations`);
+        console.log(`AI response in project ${projectId} with ${fileOperations.length} file operations`);
         
         // Broadcast to all users in the project room
         this.io.to(`project:${projectId}`).emit('ai-response', {
@@ -473,17 +438,15 @@ export class WebSocketServer {
         });
       });
 
-      // Disconnect
       socket.on('disconnect', async () => {
-        console.log(`❌ Client disconnected: ${socket.id}`);
+        console.log(`Client disconnected: ${socket.id}`);
         
-        // Clean up subscriptions
         if (this.socketSubscriptions.has(socket.id)) {
           const fileKeys = this.socketSubscriptions.get(socket.id)!;
           for (const fileKey of fileKeys) {
             const [projectId, ...filePathParts] = fileKey.split(':');
             const filePath = filePathParts.join(':');
-            console.log(`🧹 Unsubscribing ${socket.id} from ${fileKey}`);
+            console.log(`Unsubscribing ${socket.id} from ${fileKey}`);
             await this.crdtService.unsubscribeFromDocument(projectId, filePath);
           }
           this.socketSubscriptions.delete(socket.id);
@@ -518,13 +481,13 @@ export class WebSocketServer {
           output,
         });
         
-        console.log(`📡 Broadcasted terminal output to terminal:${projectId}:${terminalId}`);
+        console.log(`Broadcasted terminal output to terminal:${projectId}:${terminalId}`);
       } catch (error) {
         console.error('Error processing terminal output:', error);
       }
     });
     
-    console.log('✅ Subscribed to terminal:*:* for terminal output');
+    console.log('Subscribed to terminal:*:* for terminal output');
   }
 
   private arraysEqual(a: Uint8Array, b: Uint8Array): boolean {
@@ -544,17 +507,16 @@ export class WebSocketServer {
       await this.redisSub.connect();
       await this.setupTerminalRedisSubscription();
       
-      // Initialize SQS service (creates queue if needed)
       const sqsService = getSQSService();
       await sqsService.initialize();
 
       const port = parseInt(process.env.WEBSOCKET_PORT || '8080');
       
       this.httpServer.listen(port, () => {
-        console.log(`🚀 WebSocket server running on port ${port}`);
+        console.log(`WebSocket server running on port ${port}`);
       });
     } catch (error) {
-      console.error('❌ Failed to start WebSocket server:', error);
+      console.error('Failed to start WebSocket server:', error);
       throw error;
     }
   }

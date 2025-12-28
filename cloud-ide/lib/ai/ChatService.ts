@@ -35,7 +35,7 @@ export class ChatService {
       // Use the working model format
       const modelName = process.env.GEMINI_MODEL || 'models/gemini-2.5-flash';
       
-      console.log('🤖 Using Gemini model:', modelName);
+      console.log('Using Gemini model:', modelName);
       
       const model = this.genAI.getGenerativeModel({ 
         model: modelName,
@@ -51,7 +51,7 @@ export class ChatService {
       const response = await result.response;
       const aiResponse = response.text();
       
-      console.log('✅ Received response from Gemini');
+      console.log('Received response from Gemini');
       
       const fileOperations = this.parseFileOperations(aiResponse);
       const executionResults = await this.executeFileOperations(projectId, fileOperations);
@@ -129,8 +129,8 @@ Respond naturally, explain your actions, then include file operations using the 
   }
 
   private parseFileOperations(aiResponse: string): FileOperation[] {
-    console.log('🔍 Parsing AI response for file operations...');
-    console.log('📄 AI Response:', aiResponse);
+    console.log('Parsing AI response for file operations...');
+    console.log('AI Response:', aiResponse);
     
     const operations: FileOperation[] = [];
     const operationRegex = /\[FILE_OPERATION\]([\s\S]*?)\[\/FILE_OPERATION\]/g;
@@ -138,7 +138,7 @@ Respond naturally, explain your actions, then include file operations using the 
     let match;
     while ((match = operationRegex.exec(aiResponse)) !== null) {
       const operationText = match[1].trim();
-      console.log('📋 Found operation block:', operationText);
+      console.log('Found operation block:', operationText);
       
       const lines = operationText.split('\n');
       
@@ -170,7 +170,7 @@ Respond naturally, explain your actions, then include file operations using the 
       
       content = contentLines.join('\n').trim();
       
-      console.log('✅ Parsed operation:', { action, path, contentLength: content.length, description });
+      console.log('Parsed operation:', { action, path, contentLength: content.length, description });
       
       if (action && path && ['create', 'edit', 'delete', 'read'].includes(action)) {
         operations.push({
@@ -180,11 +180,11 @@ Respond naturally, explain your actions, then include file operations using the 
           description: description || `${action} ${path}`
         });
       } else {
-        console.log('❌ Invalid operation skipped:', { action, path, hasContent: !!content });
+        console.log('Invalid operation skipped:', { action, path, hasContent: !!content });
       }
     }
     
-    console.log(`🎯 Total operations parsed: ${operations.length}`);
+    console.log(`Total operations parsed: ${operations.length}`);
     return operations;
   }
 
@@ -194,17 +194,17 @@ Respond naturally, explain your actions, then include file operations using the 
   ): Promise<{ operations: FileOperation[]; success: boolean; error?: string }> {
     const executedOperations: FileOperation[] = [];
     
-    console.log('🔧 Executing file operations:', operations);
+    console.log('Executing file operations:', operations);
     
     try {
       for (const operation of operations) {
-        console.log(`📝 Processing operation: ${operation.action} ${operation.path}`);
+        console.log(`Processing operation: ${operation.action} ${operation.path}`);
         
         switch (operation.action) {
           case 'create':
           case 'edit':
             if (operation.content !== undefined) {
-              console.log(`💾 Creating CRDT file: ${operation.path} with content length: ${operation.content.length}`);
+              console.log(`Creating CRDT file: ${operation.path} with content length: ${operation.content.length}`);
               
               // Create a Yjs document with the content
               const Y = await import('yjs');
@@ -220,31 +220,31 @@ Respond naturally, explain your actions, then include file operations using the 
               // Save CRDT state to S3 (this is what the UI expects)
               await this.s3Service.saveCRDTState(projectId, operation.path, state);
               
-              console.log(`✅ Successfully created CRDT file: ${operation.path} (${state.length} bytes)`);
+              console.log(`Successfully created CRDT file: ${operation.path} (${state.length} bytes)`);
               executedOperations.push(operation);
             } else {
-              console.log(`❌ No content provided for: ${operation.path}`);
+              console.log(`No content provided for: ${operation.path}`);
             }
             break;
             
           case 'delete':
-            console.log(`🗑️ Deleting file: ${operation.path}`);
+            console.log(`Deleting file: ${operation.path}`);
             await this.s3Service.deleteFile(projectId, operation.path);
-            console.log(`✅ Successfully deleted: ${operation.path}`);
+            console.log(`Successfully deleted: ${operation.path}`);
             executedOperations.push(operation);
             break;
             
           case 'read':
-            console.log(`👁️ Read operation for: ${operation.path}`);
+            console.log(`Read operation for: ${operation.path}`);
             executedOperations.push(operation);
             break;
         }
       }
       
-      console.log(`✅ All operations completed successfully. Executed: ${executedOperations.length}/${operations.length}`);
+      console.log(`All operations completed successfully. Executed: ${executedOperations.length}/${operations.length}`);
       return { operations: executedOperations, success: true };
     } catch (error) {
-      console.error('❌ Error executing file operations:', error);
+      console.error('Error executing file operations:', error);
       return {
         operations: executedOperations,
         success: false,
