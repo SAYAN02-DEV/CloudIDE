@@ -19,4 +19,4 @@ jobs:
           port: ${{ secrets.SSH_PORT || 22 }}
           command_timeout: 30m
           script: |
-            cd CloudIDE/cloud-ide && git checkout test && git pull origin test && npm install && pm2 restart cloud-ide || pm2 start npm --name "cloud-ide" -- run start
+            export NVM_DIR="$HOME/.nvm" && [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh" && cd CloudIDE/cloud-ide && git checkout test && git pull origin test && npm install && pm2 restart cloud-ide || pm2 start npm --name "cloud-ide" -- run start
